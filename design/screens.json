@@ -1,0 +1,132 @@
+[
+ {
+  "page": "본편 시안",
+  "title": "01 홈 · 시나리오 선택",
+  "file": "Main.html"
+ },
+ {
+  "page": "본편 시안",
+  "title": "02 안전 브리핑 · 실습",
+  "file": "Briefing.html"
+ },
+ {
+  "page": "본편 시안",
+  "title": "03 플레이 · 퍼즐 진행",
+  "file": "Play.html"
+ },
+ {
+  "page": "본편 시안",
+  "title": "04 주행 감지 · 일시정지",
+  "file": "Paused.html"
+ },
+ {
+  "page": "본편 시안",
+  "title": "05 탈출 성공 · 결과",
+  "file": "Clear.html"
+ },
+ {
+  "page": "튜토리얼 · 얼어붙은 밤",
+  "title": "T0 튜토리얼 소개",
+  "file": "TutIntro.html"
+ },
+ {
+  "page": "튜토리얼 · 얼어붙은 밤",
+  "title": "T1 정전 · 나레이션",
+  "file": "TutDark.html"
+ },
+ {
+  "page": "튜토리얼 · 얼어붙은 밤",
+  "title": "T2 배터리 선 연결 (시트 열선)",
+  "file": "TutBattery.html"
+ },
+ {
+  "page": "튜토리얼 · 얼어붙은 밤",
+  "title": "T3 얼어붙은 글로브박스",
+  "file": "TutGlove.html"
+ },
+ {
+  "page": "튜토리얼 · 얼어붙은 밤",
+  "title": "T4 창문 회로 퍼즐",
+  "file": "TutWindow.html"
+ },
+ {
+  "page": "튜토리얼 · 얼어붙은 밤",
+  "title": "T5 눈 치우기 (와이퍼·김서림)",
+  "file": "TutWiper.html"
+ },
+ {
+  "page": "튜토리얼 · 얼어붙은 밤",
+  "title": "T6 출발 준비 (안전벨트·브레이크)",
+  "file": "TutBelt.html"
+ },
+ {
+  "page": "튜토리얼 · 얼어붙은 밤",
+  "title": "T7 대피소 도착 · 결과",
+  "file": "TutClear.html"
+ },
+ {
+  "page": "공통 UI",
+  "title": "C1 스플래시",
+  "file": "Splash.html"
+ },
+ {
+  "page": "공통 UI",
+  "title": "C2 시나리오 상세",
+  "file": "Detail.html"
+ },
+ {
+  "page": "공통 UI",
+  "title": "C3 나레이션 노트 창",
+  "file": "NoteModal.html"
+ },
+ {
+  "page": "공통 UI",
+  "title": "C4 힌트 창",
+  "file": "HintModal.html"
+ },
+ {
+  "page": "공통 UI",
+  "title": "C5 정답 연출",
+  "file": "Solved.html"
+ },
+ {
+  "page": "공통 UI",
+  "title": "C6 실패 결과",
+  "file": "Fail.html"
+ },
+ {
+  "page": "공통 UI",
+  "title": "C7 배지 획득 연출",
+  "file": "BadgeGet.html"
+ },
+ {
+  "page": "공통 UI",
+  "title": "C8 배지판 (컬렉션)",
+  "file": "BadgeBook.html"
+ },
+ {
+  "page": "진입 · 차량 점검",
+  "title": "E1 모드 선택",
+  "file": "ModeSelect.html"
+ },
+ {
+  "page": "진입 · 차량 점검",
+  "title": "E2 차량 점검 안내",
+  "file": "CheckIntro.html"
+ },
+ {
+  "page": "진입 · 차량 점검",
+  "title": "E3 점검 진행",
+  "file": "CheckRun.html"
+ },
+ {
+  "page": "진입 · 차량 점검",
+  "title": "E4 감지 실패 · 재시도",
+  "file": "CheckRetry.html"
+ },
+ {
+  "page": "진입 · 차량 점검",
+  "title": "E5 점검 결과",
+  "file": "CheckResult.html"
+ }
+]

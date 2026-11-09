@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>정답 연출</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&amp;family=Noto+Serif+KR:wght@700;900&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap">
+<style>
+body{margin:0}
+a,button{white-space:nowrap}
+a{color:#E8A33D}a:hover{color:#F3BE6A}
+</style>
+</head>
+<body>
+<div style="width: 960px; height: 600px; position: relative; overflow: hidden; background: #0B0B0E; color: #ECEAE4; font-family: 'Noto Sans KR', sans-serif">
+  <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #3A3D45; font-size: 18px; border: 2px dashed #1E2026; box-sizing: border-box">[플레이 중인 게임 화면]</div>
+  <div style="position: absolute; inset: 0; background: radial-gradient(circle at 50% 42%, rgba(232,163,61,0.22) 0%, rgba(5,5,7,0.86) 45%)"></div>
+
+  <div style="position: absolute; left: 50%; top: 70px; width: 760px; margin-left: -380px; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center">
+    <svg width="150" height="150" viewBox="0 0 150 150" aria-hidden="true">
+      <circle cx="75" cy="75" r="70" fill="none" stroke="#E8A33D" stroke-width="2" opacity="0.25"></circle>
+      <circle cx="75" cy="75" r="56" fill="#231C12" stroke="#E8A33D" stroke-width="4"></circle>
+      <path d="M50 76l17 17 34-36" fill="none" stroke="#E8A33D" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"></path>
+      <path d="M75 0v12M75 138v12M0 75h12M138 75h12M22 22l9 9M119 119l9 9M22 128l9-9M119 31l9-9" stroke="#E8A33D" stroke-width="3" stroke-linecap="round" opacity="0.6"></path>
+    </svg>
+    <span style="font-family: 'IBM Plex Mono', monospace; font-size: 14px; letter-spacing: 4px; color: #E8A33D">PUZZLE SOLVED</span>
+    <span style="font-family: 'Noto Serif KR', serif; font-size: 46px; font-weight: 900; letter-spacing: -1px">[퍼즐 이름] 해결!</span>
+    <span style="font-size: 18px; color: #CFCBC2">[얻은 것 또는 다음 상황 한 줄 안내]</span>
+    <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px">
+      <span style="width: 54px; height: 8px; border-radius: 4px; background: #E8A33D"></span>
+      <span style="width: 54px; height: 8px; border-radius: 4px; background: #E8A33D"></span>
+      <span style="width: 54px; height: 8px; border-radius: 4px; background: #E8A33D; box-shadow: 0 0 12px #E8A33D"></span>
+      <span style="width: 54px; height: 8px; border-radius: 4px; background: #2A2D35"></span>
+      <span style="width: 54px; height: 8px; border-radius: 4px; background: #2A2D35"></span>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #D9C9A8; margin-left: 8px">3 / 5</span>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 32px; bottom: 32px; display: flex; align-items: center; gap: 14px">
+    <button style="height: 58px; padding: 0 24px; border-radius: 16px; border: none; background: #E8A33D; color: #1A1408; font: inherit; font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; cursor: pointer">
+      다음으로
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+    </button>
+    <span style="font-size: 14px; color: #8A877F">3초 후 자동으로 넘어가요</span>
+  </div>
+</div>
+</body>
+</html>

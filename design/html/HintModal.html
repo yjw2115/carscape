@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>힌트 창</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&amp;family=Noto+Serif+KR:wght@700;900&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap">
+<style>
+body{margin:0}
+a,button{white-space:nowrap}
+a{color:#E8A33D}a:hover{color:#F3BE6A}
+</style>
+</head>
+<body>
+<div style="width: 960px; height: 600px; position: relative; overflow: hidden; background: #0B0B0E; color: #ECEAE4; font-family: 'Noto Sans KR', sans-serif">
+  <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #3A3D45; font-size: 18px; border: 2px dashed #1E2026; box-sizing: border-box">[플레이 중인 게임 화면]</div>
+  <div style="position: absolute; inset: 0; background: rgba(5,5,7,0.72)"></div>
+
+  <div style="position: absolute; top: 0; left: 0; bottom: 0; width: 720px; background: #15161B; border-right: 1px solid #2A2D35; box-shadow: 20px 0 60px rgba(0,0,0,0.5); display: flex; flex-direction: column; padding: 28px 32px; box-sizing: border-box; gap: 16px">
+    <div style="display: flex; align-items: center; justify-content: space-between">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#E8A33D" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5V16h8v-2.5A6 6 0 0 0 12 3z"></path></svg>
+        <span style="font-family: 'Noto Serif KR', serif; font-size: 26px; font-weight: 900">힌트</span>
+        <span style="font-size: 15px; color: #A9A69E">· [현재 퍼즐 이름]</span>
+      </div>
+      <span style="font-size: 14px; color: #A9A69E">남은 힌트 <b style="color: #ECEAE4">2</b> / 3</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; flex-grow: 1">
+      <div style="padding: 18px; border-radius: 16px; background: #231C12; border: 1px solid #5A4220; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 2px; color: #E8A33D">HINT 1 · 방향</span>
+        <span style="font-size: 17px; line-height: 1.55; color: #F2EFE8">[어디를 봐야 하는지 살짝 알려주는 힌트]</span>
+        <span style="margin-top: auto; font-size: 13px; color: #C9A86E">열람함</span>
+      </div>
+      <div style="padding: 18px; border-radius: 16px; background: #0F1014; border: 1px dashed #3A3D45; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 2px; color: #A9A69E">HINT 2 · 방법</span>
+        <span style="font-size: 17px; line-height: 1.55; color: #6A675F">어떤 장치를 어떻게 조작하는지 알려줘요</span>
+        <button style="margin-top: auto; height: 50px; border-radius: 12px; border: 1px solid #E8A33D; background: transparent; color: #E8A33D; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer">힌트 열기 · 기록 +1분</button>
+      </div>
+      <div style="padding: 18px; border-radius: 16px; background: #0F1014; border: 1px dashed #3A3D45; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 2px; color: #6A675F">HINT 3 · 정답</span>
+        <span style="font-size: 17px; line-height: 1.55; color: #6A675F">정답을 그대로 보여줘요</span>
+        <span style="margin-top: auto; height: 50px; border-radius: 12px; background: #1A1B20; color: #6A675F; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 6px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>
+          힌트 2를 먼저 열어요
+        </span>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 12px">
+      <button style="height: 58px; padding: 0 22px; border-radius: 16px; border: 1px solid #2A2D35; background: #0B0B0E; color: #ECEAE4; font: inherit; font-size: 17px; cursor: pointer">닫고 계속하기</button>
+      <span style="font-size: 13px; color: #8A877F">[00]초 동안 진행이 없으면 나레이션이 자동으로 한 번 더 알려줘요</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

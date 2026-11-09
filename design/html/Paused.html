@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Carscape 주행 중 일시정지</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&amp;family=Noto+Serif+KR:wght@600;700;900&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap">
+<style>
+body{margin:0}
+a,button{white-space:nowrap}
+a{color:#E8A33D}a:hover{color:#F3BE6A}
+</style>
+</head>
+<body>
+<div style="width: 960px; height: 600px; box-sizing: border-box; background: #08090B; color: #ECEAE4; font-family: 'Noto Sans KR', sans-serif; position: relative; overflow: hidden">
+  <svg width="960" height="600" viewBox="0 0 1440 600" preserveAspectRatio="xMidYMid slice" style="position: absolute; inset: 0" aria-hidden="true">
+    <path d="M520 600L700 230h40l180 370z" fill="#12141A"></path>
+    <path d="M718 250v30M718 320v40M718 410v60M718 520v80" stroke="#2A2D35" stroke-width="6" stroke-linecap="round"></path>
+    <path d="M0 230h1440" stroke="#16181D" stroke-width="2"></path>
+    <circle cx="720" cy="230" r="260" fill="none" stroke="#12141A" stroke-width="1"></circle>
+    <circle cx="720" cy="230" r="380" fill="none" stroke="#0F1115" stroke-width="1"></circle>
+  </svg>
+  <div style="position: relative; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; padding: 40px; box-sizing: border-box">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-radius: 999px; background: #1B1408; border: 1px solid #4A3518; font-family: 'IBM Plex Mono', monospace; font-size: 14px; letter-spacing: 2px; color: #F6DCAA">
+      <span style="width: 8px; height: 8px; border-radius: 50%; background: #E8A33D"></span>
+      DRIVING DETECTED · GAME PAUSED
+    </div>
+    <div style="width: 120px; height: 120px; border-radius: 50%; border: 3px solid #2A2D35; display: flex; align-items: center; justify-content: center; background: #111216">
+      <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#ECEAE4" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M9 6v12M15 6v12"></path></svg>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px">
+      <span style="font-family: 'Noto Serif KR', serif; font-size: 42px; font-weight: 900; letter-spacing: -0.5px">사건은 잠시 멈춰둘게요</span>
+      <span style="font-size: 21px; color: #A9A69E">운전에 집중하세요. P단으로 바꾸면 멈춘 장면에서 그대로 이어져요.</span>
+    </div>
+    <div style="display: flex; gap: 14px">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 30px; border-radius: 16px; background: #111216; border: 1px solid #23262D; min-width: 150px">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 2px; color: #8A877F">GEAR</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 34px; font-weight: 600">D</span>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 30px; border-radius: 16px; background: #111216; border: 1px solid #23262D; min-width: 150px">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 2px; color: #8A877F">TIME LEFT</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 34px; font-weight: 600; color: #F6DCAA">18:42</span>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 30px; border-radius: 16px; background: #111216; border: 1px solid #23262D; min-width: 150px">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 2px; color: #8A877F">PROGRESS</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 34px; font-weight: 600">CH 2</span>
+      </div>
+    </div>
+    <span style="font-size: 15px; color: #8A877F">주행 중에는 소리·화면 효과가 모두 꺼지고, 아무것도 누를 필요가 없어요</span>
+  </div>
+</div>
+</body>
+</html>
