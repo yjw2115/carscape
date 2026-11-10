@@ -2,401 +2,245 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:carscape/features/tutorial/domain/tutorial_controller.dart';
 import 'package:carscape/features/tutorial/domain/tutorial_models.dart';
 import 'package:carscape/features/tutorial/integration/pleos_tutorial_input_source.dart';
+import 'tutorial_controller_test.dart' show dialogue, runFor, light, window;
 
-void finishDialogue(TutorialController c) {
-  while (c.dialogueActive) {
-    c.advanceDialogue();
-  }
-}
-
-void initialize(
-  TutorialController c, {
-  List<String> seats = VehicleSeat.demoIds,
-}) {
+TutorialController liveController() {
+  final c = TutorialController(
+    options: const TutorialOptions(enableClock: false),
+  );
   c.enableVehicleMode();
   c.receive(
-    TutorialVehicleInput(
+    const TutorialVehicleInput(
       VehicleInputKind.configuration,
       0,
-      data: {'beltSeats': seats, 'seatInventory': seats, 'gloveboxOpen': false},
+      data: {
+        'doors': [
+          'ROW_1_LEFT',
+          'ROW_1_RIGHT',
+          'ROW_2_LEFT',
+          'ROW_2_RIGHT',
+          'REAR',
+        ],
+        'lightControl': true,
+        'gloveboxOpen': false,
+      },
     ),
   );
-  for (final seat in CarSeat.values) {
-    c.receive(
-      TutorialVehicleInput(
-        VehicleInputKind.cabinLight,
-        0,
-        seat: seat,
-        initial: true,
-      ),
-    );
-    c.receive(
-      TutorialVehicleInput(
-        VehicleInputKind.window,
-        0,
-        seat: seat,
-        initial: true,
-      ),
-    );
-  }
-  c.receive(const TutorialVehicleInput(VehicleInputKind.parking, 1));
   c.receive(const TutorialVehicleInput(VehicleInputKind.connection, 1));
-}
-
-void reachDeparture(TutorialController c) {
-  c.start();
-  finishDialogue(c);
+  c.receive(const TutorialVehicleInput(VehicleInputKind.parking, 1));
   for (final seat in CarSeat.values) {
-    c.receive(TutorialVehicleInput(VehicleInputKind.cabinLight, 1, seat: seat));
-  }
-  finishDialogue(c);
-  c.receive(const TutorialVehicleInput(VehicleInputKind.passengerHeater, 1));
-  finishDialogue(c);
-  c.receive(
-    const TutorialVehicleInput(
-      VehicleInputKind.window,
-      10,
-      seat: CarSeat.driver,
-    ),
-  );
-  finishDialogue(c);
-  const targets = [20, 30, 10, 20];
-  for (final seat in CarSeat.values) {
+    light(c, seat, false, initial: true);
     c.receive(
       TutorialVehicleInput(
         VehicleInputKind.window,
-        targets[seat.index],
+        0,
         seat: seat,
+        initial: true,
       ),
     );
   }
-  finishDialogue(c);
-  c.receive(const TutorialVehicleInput(VehicleInputKind.wiper, 1));
-  finishDialogue(c);
+  for (final id in c.doors.keys.toList()) {
+    c.receive(
+      TutorialVehicleInput(VehicleInputKind.door, 0, areaId: id, initial: true),
+    );
+  }
+  return c;
 }
 
 void main() {
-  late TutorialController c;
-  setUp(() {
-    c = TutorialController(options: const TutorialOptions(enableClock: false));
-  });
-  tearDown(() {
-    c.dispose();
-  });
-
   test(
-    'real observations complete the story; center belt is required, no accelerator',
+    'preexisting lights reset on entry; count waits for physical reset acknowledgment',
     () {
-      initialize(c);
-      reachDeparture(c);
-      expect(c.stage, TutorialStage.departure);
-      for (final seat in c.beltSeats.where(
-        (seat) => seat.id != 'ROW_2_CENTER',
-      )) {
-        c.receive(
-          TutorialVehicleInput(VehicleInputKind.seatbelt, 1, areaId: seat.id),
-        );
-      }
-      expect(c.buckledCount, 4);
-      expect(c.stage, TutorialStage.departure);
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.seatbelt,
-          1,
-          areaId: 'ROW_2_CENTER',
-        ),
-      );
-      expect(c.stage, TutorialStage.arrival);
-      finishDialogue(c);
-      expect(c.stage, TutorialStage.result);
-    },
-  );
-
-  test(
-    'initial ON values cannot solve light sequence; wrong order requires actual OFF first',
-    () {
-      initialize(c);
+      final c = liveController();
+      addTearDown(c.dispose);
+      light(c, CarSeat.driver, true, initial: true);
       c.start();
-      finishDialogue(c);
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.cabinLight,
-          1,
-          seat: CarSeat.driver,
-        ),
-      );
-      for (final seat in CarSeat.values) {
-        c.receive(
-          TutorialVehicleInput(
-            VehicleInputKind.cabinLight,
-            1,
-            seat: seat,
-            initial: true,
-          ),
-        );
-      }
+      dialogue(c);
+      expect(c.lightsResetting, isTrue);
+      final revision = c.lightResetRevision;
+      light(c, CarSeat.rearLeft, true);
       expect(c.powerCount, 0);
+      c.confirmLightReset(revision, success: true);
+      light(c, CarSeat.rearLeft, true);
+      expect(c.powerCount, 1);
+      light(c, CarSeat.passenger, true);
+      expect(c.powerCount, 0);
+      expect(c.lightsResetting, isTrue);
+      final second = c.lightResetRevision;
+      c.confirmLightReset(revision, success: true);
+      expect(c.lightsResetting, isTrue);
+      c.confirmLightReset(second, success: true);
       for (final seat in CarSeat.values) {
-        c.receive(
-          TutorialVehicleInput(VehicleInputKind.cabinLight, 0, seat: seat),
-        );
-      }
-      for (final seat in CarSeat.values) {
-        c.receive(
-          TutorialVehicleInput(VehicleInputKind.cabinLight, 1, seat: seat),
-        );
+        light(c, seat, true);
       }
       expect(c.stage, TutorialStage.glovebox);
     },
   );
-
-  test(
-    'belt inventory includes third-row and center seats without assuming four or five',
-    () {
-      final ids = [
-        for (int row = 1; row <= 3; row++)
-          for (final side in ['LEFT', 'CENTER', 'RIGHT']) 'ROW_${row}_$side',
-      ];
-      initialize(c, seats: ids);
-      reachDeparture(c);
-      for (final id in ids.take(8)) {
-        c.receive(
-          TutorialVehicleInput(VehicleInputKind.seatbelt, 1, areaId: id),
-        );
-      }
-      expect(c.stage, TutorialStage.departure);
-      expect(c.beltSeats.length, 9);
-      c.receive(
-        TutorialVehicleInput(VehicleInputKind.seatbelt, 1, areaId: ids.last),
-      );
-      expect(c.stage, TutorialStage.arrival);
-    },
-  );
-
-  test(
-    'cached belt updates before capability report are preserved; unreadable seats block',
-    () {
-      c.enableVehicleMode();
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.seatbelt,
-          1,
-          areaId: 'ROW_2_CENTER',
-          initial: true,
-        ),
-      );
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.configuration,
-          0,
-          data: {
-            'beltSeats': ['ROW_1_LEFT'],
-            'seatInventory': ['ROW_1_LEFT', 'ROW_2_CENTER'],
-          },
-        ),
-      );
-      expect(c.belts['ROW_2_CENTER'], isTrue);
-      expect(c.allBelts, isFalse);
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.issue,
-          0,
-          data: {
-            'feature': 'belt:ROW_2_CENTER',
-            'message': 'sensor unavailable',
-          },
-        ),
-      );
-      expect(c.belts['ROW_2_CENTER'], isNull);
-    },
-  );
-
-  test(
-    'unbuckling while paused updates current state and prevents stale auto-clear',
-    () {
-      initialize(c);
-      reachDeparture(c);
-      c.setManualPause(true);
-      for (final seat in c.beltSeats) {
-        c.receive(
-          TutorialVehicleInput(VehicleInputKind.seatbelt, 1, areaId: seat.id),
-        );
-      }
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.seatbelt,
-          0,
-          areaId: 'ROW_2_CENTER',
-        ),
-      );
-      c.tick(const Duration(minutes: 3));
-      expect(c.elapsed, Duration.zero);
-      c.setManualPause(false);
-      expect(c.stage, TutorialStage.departure);
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.seatbelt,
-          1,
-          areaId: 'ROW_2_CENTER',
-        ),
-      );
-      expect(c.stage, TutorialStage.arrival);
-    },
-  );
-
-  test(
-    'window initial read and paused position changes do not trigger the puzzle',
-    () {
-      initialize(c);
-      c.start();
-      finishDialogue(c);
-      for (final seat in CarSeat.values) {
-        c.receive(
-          TutorialVehicleInput(VehicleInputKind.cabinLight, 1, seat: seat),
-        );
-      }
-      finishDialogue(c);
-      c.receive(
-        const TutorialVehicleInput(VehicleInputKind.passengerHeater, 1),
-      );
-      finishDialogue(c);
-      expect(c.stage, TutorialStage.windowRequest);
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.window,
-          20,
-          seat: CarSeat.driver,
-          initial: true,
-        ),
-      );
-      expect(c.stage, TutorialStage.windowRequest);
-      c.setManualPause(true);
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.window,
-          30,
-          seat: CarSeat.driver,
-        ),
-      );
-      c.setManualPause(false);
-      expect(c.stage, TutorialStage.windowRequest);
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.window,
-          20,
-          seat: CarSeat.driver,
-        ),
-      );
-      expect(c.stage, TutorialStage.windowCircuit);
-      expect(c.windowPositions[CarSeat.driver], 20);
-    },
-  );
-
-  test(
-    'physical light switched off while paused invalidates its old connection',
-    () {
-      initialize(c);
-      c.start();
-      finishDialogue(c);
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.cabinLight,
-          1,
-          seat: CarSeat.rearLeft,
-        ),
-      );
-      expect(c.powerCount, 1);
-      c.setManualPause(true);
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.cabinLight,
-          0,
-          seat: CarSeat.rearLeft,
-        ),
-      );
-      c.setManualPause(false);
-      expect(c.powerCount, 0);
-    },
-  );
-
-  test('out-of-range physical window blocks an otherwise aligned circuit', () {
-    initialize(c);
-    c.stage = TutorialStage.windowCircuit;
-    c.receive(
-      const TutorialVehicleInput(
-        VehicleInputKind.window,
-        20,
-        seat: CarSeat.driver,
-      ),
-    );
-    c.receive(
-      const TutorialVehicleInput(
-        VehicleInputKind.window,
-        75,
-        seat: CarSeat.driver,
-      ),
-    );
-    c.receive(
-      const TutorialVehicleInput(
-        VehicleInputKind.window,
-        20,
-        seat: CarSeat.rearLeft,
-      ),
-    );
-    c.receive(
-      const TutorialVehicleInput(
-        VehicleInputKind.window,
-        30,
-        seat: CarSeat.rearRight,
-      ),
-    );
-    c.receive(
-      const TutorialVehicleInput(
-        VehicleInputKind.window,
-        10,
-        seat: CarSeat.passenger,
-      ),
-    );
-    expect(c.connectedGates, 4);
-    expect(c.stage, TutorialStage.windowCircuit);
-    c.receive(
-      const TutorialVehicleInput(
-        VehicleInputKind.window,
-        20,
-        seat: CarSeat.driver,
-      ),
-    );
-    expect(c.stage, TutorialStage.wipers);
+  test('failed reset blocks progress; explicit retry can recover', () {
+    final c = liveController();
+    addTearDown(c.dispose);
+    c.start();
+    dialogue(c);
+    c.confirmLightReset(c.lightResetRevision, success: false);
+    expect(c.paused, isTrue);
+    expect(c.lightsResetting, isTrue);
+    c.retryLightReset();
+    c.confirmLightReset(c.lightResetRevision, success: true);
+    expect(c.paused, isFalse);
+    expect(c.lightsResetting, isFalse);
   });
-
+  test('a wrong light switched while paused resets after resume', () {
+    final c = liveController();
+    addTearDown(c.dispose);
+    c.start();
+    dialogue(c);
+    c.confirmLightReset(c.lightResetRevision, success: true);
+    c.setManualPause(true);
+    light(c, CarSeat.passenger, true);
+    c.setManualPause(false);
+    expect(c.lightsResetting, isTrue);
+  });
+  test('unknown door or window cannot produce a successful gas stage', () {
+    final c = liveController();
+    addTearDown(c.dispose);
+    c.testNavigate(1);
+    c.testNavigate(1);
+    c.testNavigate(1);
+    dialogue(c);
+    for (final seat in CarSeat.values) {
+      window(c, seat, 20);
+    }
+    c.receive(
+      const TutorialVehicleInput(
+        VehicleInputKind.door,
+        0,
+        areaId: 'REAR',
+        known: false,
+      ),
+    );
+    runFor(c, 20);
+    expect(c.stage, TutorialStage.ventilation);
+    c.receive(
+      const TutorialVehicleInput(VehicleInputKind.door, 0, areaId: 'REAR'),
+    );
+    c.receive(
+      const TutorialVehicleInput(
+        VehicleInputKind.window,
+        0,
+        seat: CarSeat.driver,
+        known: false,
+      ),
+    );
+    runFor(c, 20);
+    expect(c.stage, TutorialStage.ventilation);
+    window(c, CarSeat.driver, 20);
+    runFor(c, 6);
+    expect(c.stage, TutorialStage.escape);
+  });
+  test('physical changes continue caching under narration and pause', () {
+    final c = liveController();
+    addTearDown(c.dispose);
+    c.testNavigate(1);
+    c.testNavigate(1);
+    c.testNavigate(1);
+    expect(c.dialogueActive, isTrue);
+    for (final seat in CarSeat.values) {
+      window(c, seat, 20);
+    }
+    c.receive(
+      const TutorialVehicleInput(VehicleInputKind.door, 1, areaId: 'REAR'),
+    );
+    dialogue(c);
+    runFor(c, 6);
+    expect(c.stage, TutorialStage.ventilation);
+    c.setManualPause(true);
+    c.receive(
+      const TutorialVehicleInput(VehicleInputKind.door, 0, areaId: 'REAR'),
+    );
+    runFor(c, 10);
+    expect(c.stage, TutorialStage.ventilation);
+    c.setManualPause(false);
+    runFor(c, 7);
+    expect(c.stage, TutorialStage.escape);
+  });
+  test('P gear and connection suspend the new stages', () {
+    final c = liveController();
+    addTearDown(c.dispose);
+    c.testNavigate(1);
+    c.testNavigate(1);
+    c.testNavigate(1);
+    dialogue(c);
+    window(c, CarSeat.driver, 100);
+    c.receive(const TutorialVehicleInput(VehicleInputKind.parking, 0));
+    runFor(c, 10);
+    expect(c.cabinTemperature, 20);
+    c.receive(const TutorialVehicleInput(VehicleInputKind.parking, 1));
+    c.receive(const TutorialVehicleInput(VehicleInputKind.connection, 0));
+    runFor(c, 10);
+    expect(c.cabinTemperature, 20);
+    c.receive(const TutorialVehicleInput(VehicleInputKind.connection, 1));
+    runFor(c, 2);
+    expect(c.cabinTemperature, lessThan(16));
+  });
   test(
-    'native decoder preserves all seat IDs, unknown values, and initial-read flags',
+    'steering initial value and early turn never skip the visibility requirement',
     () {
-      final belt = PleosTutorialInputSource.decode({
-        'type': 'value',
-        'kind': 'seatbelt',
-        'area': 'ROW_3_CENTER',
-        'value': true,
-        'initial': true,
-      });
-      expect(belt.areaId, 'ROW_3_CENTER');
-      expect(belt.initial, isTrue);
-      expect(belt.value, 1);
-      final unknown = PleosTutorialInputSource.decode({
-        'type': 'value',
-        'kind': 'seatbelt',
-        'area': 'ROW_2_CENTER',
-        'value': null,
-      });
-      expect(unknown.known, isFalse);
-      final position = PleosTutorialInputSource.decode({
+      final c = liveController();
+      addTearDown(c.dispose);
+      for (int i = 0; i < 4; i++) {
+        c.testNavigate(1);
+      }
+      dialogue(c);
+      c.receive(
+        const TutorialVehicleInput(
+          VehicleInputKind.steering,
+          45,
+          initial: true,
+        ),
+      );
+      c.receive(const TutorialVehicleInput(VehicleInputKind.wiper, 1));
+      runFor(c, 3.2);
+      expect(c.shelterVisible, isTrue);
+      expect(c.stage, TutorialStage.escape);
+      c.receive(const TutorialVehicleInput(VehicleInputKind.steering, 0));
+      c.receive(
+        const TutorialVehicleInput(
+          VehicleInputKind.steering,
+          45,
+          initial: true,
+        ),
+      );
+      expect(c.stage, TutorialStage.escape);
+      c.receive(const TutorialVehicleInput(VehicleInputKind.steering, 46));
+      expect(c.stage, TutorialStage.arrival);
+    },
+  );
+  test(
+    'decoder preserves fractional window values, unknown doors, steering signs',
+    () {
+      final window = PleosTutorialInputSource.decode({
         'type': 'value',
         'kind': 'window',
-        'area': 'ROW_2_LEFT',
-        'value': 30.0,
+        'value': 20.0,
+        'area': 'ROW_1_LEFT',
+        'initial': true,
       });
-      expect(position.seat, CarSeat.rearLeft);
-      expect(position.value, 30);
+      expect(window.seat, CarSeat.driver);
+      expect(window.initial, isTrue);
+      final door = PleosTutorialInputSource.decode({
+        'type': 'value',
+        'kind': 'door',
+        'value': null,
+        'area': 'REAR',
+      });
+      expect(door.known, isFalse);
+      expect(door.areaId, 'REAR');
+      final steering = PleosTutorialInputSource.decode({
+        'type': 'value',
+        'kind': 'steering',
+        'value': -30.0,
+      });
+      expect(steering.value, -30);
     },
   );
 }

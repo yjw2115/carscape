@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import '../domain/tutorial_models.dart';
 import 'tutorial_input_source.dart';
 
-/// Native Android Vehicle SDK observations. There are no vehicle-write methods.
+/// Vehicle SDK observations, plus chapter-scoped reading-light OFF reset.
 class PleosTutorialInputSource implements TutorialInputSource {
   static const _events = EventChannel('io.carscape/tutorial_vehicle/events');
   static const _methods = MethodChannel('io.carscape/tutorial_vehicle');
@@ -51,4 +51,12 @@ class PleosTutorialInputSource implements TutorialInputSource {
   Future<void> refresh() async {
     await _methods.invokeMethod<void>('refresh');
   }
+
+  @override
+  Future<void> setLightPuzzleActive(bool active) =>
+      _methods.invokeMethod<void>('setLightPuzzleActive', active);
+
+  @override
+  Future<void> resetReadingLights() =>
+      _methods.invokeMethod<void>('resetReadingLights');
 }

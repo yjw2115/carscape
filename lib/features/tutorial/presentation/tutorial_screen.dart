@@ -46,6 +46,16 @@ class _TutorialScreenState extends State<TutorialScreen>
   bool _voiceUnavailable = false;
   bool _notesOpen = false;
   bool _gloveboxSensor = true;
+  late bool _ownsController;
+  int _lightReset = -1, _ambientRevision = 0;
+  bool? _lightScope;
+  Future<void> _vehicleCommands = Future.value();
+  Timer? _ambientTimer;
+  bool _ambientCaption = false;
+  static const _testNavigation = bool.fromEnvironment(
+    'TUTORIAL_TEST_NAVIGATION',
+    defaultValue: true,
+  );
   bool get _demo => _source == null;
 
   @override
@@ -53,6 +63,7 @@ class _TutorialScreenState extends State<TutorialScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     c = widget.controller ?? TutorialController();
+    _ownsController = widget.controller == null;
     _source =
         widget.inputSource ??
         (!widget.previewOnly &&
@@ -102,9 +113,89 @@ class _TutorialScreenState extends State<TutorialScreen>
   void _changed() {
     if (!mounted) return;
     setState(() {});
+    _syncVehicle();
     if (_revision != c.dialogueRevision) {
       _revision = c.dialogueRevision;
       unawaited(_playCurrent());
+    }
+    if (_ambientRevision != c.ambientRevision) {
+      _ambientRevision = c.ambientRevision;
+      unawaited(_playColdComment());
+    }
+  }
+
+  void _syncVehicle() {
+    if (_demo) return;
+    final controller = c;
+    final active =
+        c.stage == TutorialStage.power &&
+        c.connected &&
+        c.parked &&
+        !c.appInBackground;
+    if (_lightScope != active) {
+      _lightScope = active;
+      if (!active) {
+        _lightReset = -1;
+        // Cancellation must not wait behind an in-flight reset request.
+        unawaited(_source!.setLightPuzzleActive(false).catchError((_) {}));
+      } else {
+        _vehicleCommands = _vehicleCommands.catchError((_) {}).then((_) async {
+          if (mounted &&
+              identical(c, controller) &&
+              _lightScope == true &&
+              c.stage == TutorialStage.power) {
+            try {
+              await _source!.setLightPuzzleActive(active);
+            } catch (_) {
+              if (mounted && identical(c, controller) && active) {
+                c.receive(
+                  const TutorialVehicleInput(
+                    VehicleInputKind.issue,
+                    0,
+                    data: {
+                      'feature': 'lightControl',
+                      'message': '조명 제어 연결을 확인해 주세요.',
+                    },
+                  ),
+                );
+              }
+            }
+          }
+        });
+      }
+    }
+    if (active && c.lightsResetting && _lightReset != c.lightResetRevision) {
+      final revision = _lightReset = c.lightResetRevision;
+      _vehicleCommands = _vehicleCommands.catchError((_) {}).then((_) async {
+        if (!mounted ||
+            !identical(c, controller) ||
+            c.stage != TutorialStage.power) {
+          return;
+        }
+        try {
+          await _source!.resetReadingLights();
+          if (mounted && identical(c, controller)) {
+            c.confirmLightReset(revision, success: true);
+          }
+        } catch (_) {
+          if (mounted && identical(c, controller)) {
+            c.confirmLightReset(revision, success: false);
+          }
+        }
+      });
+    }
+  }
+
+  Future<void> _playColdComment() async {
+    // Background reaction: no dialog, input lock, or story advancement.
+    setState(() => _ambientCaption = true);
+    _ambientTimer?.cancel();
+    _ambientTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _ambientCaption = false);
+    });
+    if (!_muted && !c.paused) {
+      final success = await _voice.speak(TutorialScript.coldComment);
+      if (!success && mounted) setState(() => _voiceUnavailable = true);
     }
   }
 
@@ -150,7 +241,13 @@ class _TutorialScreenState extends State<TutorialScreen>
     _cancelReading();
     unawaited(_voice.stop());
     c.removeListener(_changed);
-    if (widget.controller == null) c.dispose();
+    if (_ownsController) c.dispose();
+    _ownsController = true;
+    _ambientTimer?.cancel();
+    _ambientCaption = false;
+    _ambientRevision = 0;
+    _lightReset = -1;
+    _lightScope = null;
     c = TutorialController(
       options: TutorialOptions(gloveboxSensorAvailable: _gloveboxSensor),
     );
@@ -218,7 +315,12 @@ class _TutorialScreenState extends State<TutorialScreen>
                     ),
                   ),
                   const SizedBox(height: 6),
-                  for (final line in TutorialScript.dialogue[stage]!)
+                  for (final line in [
+                    ...TutorialScript.dialogue[stage]!,
+                    if (stage == TutorialStage.ventilation &&
+                        c.coldCommentPlayed)
+                      const DialogueLine('운전석', TutorialScript.coldComment),
+                  ])
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
@@ -349,7 +451,11 @@ class _TutorialScreenState extends State<TutorialScreen>
     _cancelReading();
     _subscription?.cancel();
     c.removeListener(_changed);
-    if (widget.controller == null) c.dispose();
+    if (_ownsController) c.dispose();
+    _ambientTimer?.cancel();
+    if (!_demo) {
+      unawaited(_source!.setLightPuzzleActive(false).catchError((_) {}));
+    }
     _animation.dispose();
     unawaited(_voice.dispose());
     super.dispose();
@@ -362,6 +468,7 @@ class _TutorialScreenState extends State<TutorialScreen>
       if (!didPop && c.playing) c.setManualPause(true);
     },
     child: Scaffold(
+      bottomNavigationBar: _testNavigation ? _testToolbar() : null,
       body: SafeArea(
         child: AnimatedBuilder(
           animation: _animation,
@@ -455,7 +562,7 @@ class _TutorialScreenState extends State<TutorialScreen>
                       runSpacing: 8,
                       children: [
                         _tag('4자리 협동'),
-                        _tag('다섯 개의 퍼즐'),
+                        _tag('네 개의 퍼즐'),
                         _tag('실패 없이 끝까지'),
                       ],
                     ),
@@ -517,7 +624,7 @@ class _TutorialScreenState extends State<TutorialScreen>
                             ? '차량에 연결 중입니다.'
                             : !c.parked
                             ? 'P단 정차 상태를 확인해 주세요.'
-                            : '차량 연결됨 · 안전벨트 ${c.beltSeats.length}개 좌석 확인',
+                            : '차량 연결됨 · 네 단계 준비 완료',
                         style: const TextStyle(
                           color: TutorialColors.ice,
                           fontSize: 14,
@@ -536,7 +643,7 @@ class _TutorialScreenState extends State<TutorialScreen>
                     Text(
                       _demo
                           ? '체험 모드 · 실제 차량은 제어하지 않아요.\n이야기는 허구이며 실제 차량 고장 시 대처법이 아니에요.'
-                          : '정차한 차량에서만 플레이하세요. 실내등을 미리 끄면 더 실감나요.',
+                          : 'P단 정차 상태에서 플레이하세요. 첫 단계는 독서등을 자동으로 초기화해요.',
                       style: const TextStyle(
                         color: TutorialColors.muted,
                         fontSize: 12,
@@ -672,6 +779,15 @@ class _TutorialScreenState extends State<TutorialScreen>
                   ),
                 ),
               ),
+            if (_ambientCaption && c.stage == TutorialStage.ventilation)
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  TutorialScript.coldComment,
+                  key: Key('cold-caption'),
+                  style: TextStyle(color: TutorialColors.ice, fontSize: 14),
+                ),
+              ),
             if (!_demo && c.vehicleIssues.isNotEmpty)
               Align(
                 alignment: Alignment.centerLeft,
@@ -683,12 +799,11 @@ class _TutorialScreenState extends State<TutorialScreen>
                   ),
                 ),
               ),
-            if (c.stage == TutorialStage.windowCircuit ||
-                c.stage == TutorialStage.windowRequest)
+            if (c.stage == TutorialStage.ventilation)
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '창문은 절반까지만 · 손과 머리 끼임에 주의하세요',
+                  '손과 머리 끼임에 주의하세요 · 문과 트렁크 주변을 확인하세요',
                   style: TextStyle(color: TutorialColors.muted, fontSize: 12),
                 ),
               ),
@@ -706,7 +821,7 @@ class _TutorialScreenState extends State<TutorialScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _eyebrow('얼어붙은 밤  /  ${c.step.toString().padLeft(2, '0')} OF 05'),
+            _eyebrow('얼어붙은 밤  /  ${c.step.toString().padLeft(2, '0')} OF 04'),
             const SizedBox(height: 5),
             Text(
               _stageTitle(c.stage),
@@ -841,94 +956,77 @@ class _TutorialScreenState extends State<TutorialScreen>
         ),
       ],
     ),
-    TutorialStage.windowRequest || TutorialStage.windowCircuit => Column(
+    TutorialStage.ventilation => Column(
       children: [
         for (final seat in CarSeat.values)
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(
               children: [
-                Container(
-                  width: 4,
-                  height: 31,
-                  decoration: BoxDecoration(
-                    color: TutorialColors.seatColors[seat.index],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(width: 9),
                 Expanded(
                   child: Text(
                     seat.shortLabel,
                     style: const TextStyle(fontSize: 14),
                   ),
                 ),
-                if (c.stage == TutorialStage.windowCircuit)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: Text(
-                      '${c.windowPositions[seat]}%',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: TutorialColors.muted,
-                      ),
-                    ),
-                  ),
+                Text(
+                  '${(c.windows[seat] ?? 0).round()}%',
+                  style: const TextStyle(color: TutorialColors.ice),
+                ),
+                const SizedBox(width: 6),
                 _windowButton(seat, -1),
                 const SizedBox(width: 5),
                 _windowButton(seat, 1),
               ],
             ),
           ),
-        if (c.stage == TutorialStage.windowCircuit)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: c.acceptsInput ? c.resetCircuit : null,
-              icon: const Icon(Icons.restart_alt, size: 18),
-              label: const Text('처음 위치'),
+        const SizedBox(height: 8),
+        for (final entry in c.doors.entries)
+          OutlinedButton(
+            key: Key('door-${entry.key}'),
+            onPressed: c.acceptsInput
+                ? () => _send(
+                    VehicleInputKind.door,
+                    entry.value == true ? 0 : 1,
+                    areaId: entry.key,
+                  )
+                : null,
+            child: Text(
+              '${entry.key == 'REAR' ? '트렁크' : '${seatForArea(entry.key)?.shortLabel ?? entry.key} 문'} ${entry.value == true ? '닫기' : '열기'}',
             ),
           ),
       ],
     ),
-    TutorialStage.wipers => SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        key: const Key('wiper'),
-        onPressed: c.acceptsInput
-            ? () => _send(VehicleInputKind.wiper, 1)
-            : null,
-        icon: const Icon(Icons.water_drop_outlined),
-        label: const Text('와이퍼 작동'),
-      ),
-    ),
-    TutorialStage.departure => Column(
+    TutorialStage.escape => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final seat in c.beltSeats)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: OutlinedButton.icon(
-              key: Key('belt-${seat.id}'),
-              onPressed: c.acceptsInput
-                  ? () => _send(
-                      VehicleInputKind.seatbelt,
-                      c.belts[seat.id] == true ? 0 : 1,
-                      areaId: seat.id,
-                    )
-                  : null,
-              icon: Icon(
-                c.belts[seat.id] == true
-                    ? Icons.check_circle_outline
-                    : Icons.person_outline,
-                size: 19,
-                color: c.belts[seat.id] == true ? TutorialColors.success : null,
+        FilledButton.icon(
+          key: const Key('wiper'),
+          onPressed: c.acceptsInput
+              ? () => _send(VehicleInputKind.wiper, c.wiperOn ? 0 : 1)
+              : null,
+          icon: const Icon(Icons.water_drop_outlined),
+          label: Text('와이퍼 ${c.wiperOn ? '끄기' : '켜기'}'),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          '휠 ${(c.steeringAngle ?? 0).round()}°',
+          style: const TextStyle(color: TutorialColors.ice),
+        ),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final pair in const [(-45, '왼쪽'), (0, '중앙'), (45, '오른쪽')])
+              OutlinedButton(
+                key: Key('steering-${pair.$1}'),
+                onPressed: c.acceptsInput
+                    ? () => _send(VehicleInputKind.steering, pair.$1)
+                    : null,
+                child: Text(pair.$2),
               ),
-              label: Text(
-                '${seat.label} 벨트${c.belts[seat.id] == true ? ' · 연결' : ''}',
-              ),
-            ),
-          ),
+          ],
+        ),
       ],
     ),
     _ => const SizedBox.shrink(),
@@ -1012,6 +1110,49 @@ class _TutorialScreenState extends State<TutorialScreen>
           style: TextStyle(fontSize: 11, color: TutorialColors.muted),
         ),
     ],
+  );
+
+  Widget _testToolbar() => SafeArea(
+    top: false,
+    child: Material(
+      color: const Color(0xFF162433),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            const Text(
+              '테스트',
+              style: TextStyle(color: TutorialColors.muted, fontSize: 12),
+            ),
+            TextButton.icon(
+              key: const Key('test-previous'),
+              onPressed: c.stage == TutorialStage.intro
+                  ? null
+                  : () => c.testNavigate(-1),
+              icon: const Icon(Icons.skip_previous, size: 18),
+              label: const Text('이전 단계'),
+            ),
+            TextButton.icon(
+              key: const Key('test-next'),
+              onPressed: c.stage == TutorialStage.result
+                  ? null
+                  : () => c.testNavigate(1),
+              icon: const Icon(Icons.skip_next, size: 18),
+              label: const Text('다음 단계'),
+            ),
+            TextButton.icon(
+              key: const Key('test-first'),
+              onPressed: _restart,
+              icon: const Icon(Icons.restart_alt, size: 18),
+              label: const Text('처음으로'),
+            ),
+          ],
+        ),
+      ),
+    ),
   );
 
   Widget _dialogueOverlay() => Positioned.fill(
@@ -1146,6 +1287,13 @@ class _TutorialScreenState extends State<TutorialScreen>
                   ),
                 ),
                 const SizedBox(height: 26),
+                if (c.parked &&
+                    c.connected &&
+                    c.vehicleIssues.containsKey('lightReset'))
+                  FilledButton(
+                    onPressed: c.retryLightReset,
+                    child: const Text('조명 초기화 다시 시도'),
+                  ),
                 if (c.parked && c.connected && !c.hasSensorProblem)
                   FilledButton.icon(
                     key: const Key('resume'),
@@ -1185,6 +1333,11 @@ class _TutorialScreenState extends State<TutorialScreen>
                   children: [
                     _eyebrow('안전한 곳에 도착했습니다', color: TutorialColors.warm),
                     const SizedBox(height: 12),
+                    if (c.usedTestNavigation)
+                      const Text(
+                        '단계 이동을 사용한 테스트 기록',
+                        style: TextStyle(color: TutorialColors.warm),
+                      ),
                     Text(
                       c.currentLine?.text ?? '',
                       style: const TextStyle(fontSize: 27, height: 1.6),
@@ -1224,6 +1377,11 @@ class _TutorialScreenState extends State<TutorialScreen>
                     ),
                     const SizedBox(height: 20),
                     _eyebrow('TUTORIAL COMPLETE', color: TutorialColors.warm),
+                    if (r.usedTestNavigation)
+                      const Text(
+                        '단계 이동을 사용한 테스트 기록',
+                        style: TextStyle(color: TutorialColors.warm),
+                      ),
                     const SizedBox(height: 12),
                     const Text(
                       '우리 모두, 살아남았다.',
@@ -1352,10 +1510,8 @@ class _TutorialScreenState extends State<TutorialScreen>
     TutorialStage.intro || TutorialStage.blackout => '눈보라 속 정전',
     TutorialStage.power => '작은 불빛을 따라서',
     TutorialStage.glovebox => '얼어붙은 글로브박스',
-    TutorialStage.windowRequest => '바깥 공기가 필요해',
-    TutorialStage.windowCircuit => '엉켜 버린 창문 회로',
-    TutorialStage.wipers => '눈 너머의 불빛',
-    TutorialStage.departure => '모두 함께 출발',
+    TutorialStage.ventilation => '차가운 공기, 새어 나오는 가스',
+    TutorialStage.escape => '눈 너머의 불빛',
     TutorialStage.arrival || TutorialStage.result => '대피소에 도착하다',
   };
 }

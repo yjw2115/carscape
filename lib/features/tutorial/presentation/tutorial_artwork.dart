@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../domain/tutorial_controller.dart';
 import '../domain/tutorial_models.dart';
 import 'tutorial_style.dart';
+import 'tutorial_atmosphere.dart';
 
 void _label(
   Canvas canvas,
@@ -36,7 +37,6 @@ class TutorialArtwork extends StatelessWidget {
   });
   final TutorialController controller;
   final double time;
-
   @override
   Widget build(BuildContext context) {
     final c = controller;
@@ -48,26 +48,26 @@ class TutorialArtwork extends StatelessWidget {
           border: Border.all(color: TutorialColors.border),
           borderRadius: BorderRadius.circular(24),
         ),
-        child: CustomPaint(
-          painter: switch (c.stage) {
-            TutorialStage.power => _CarPainter(c),
-            TutorialStage.departure => _BeltsPainter(c),
-            TutorialStage.glovebox => _GloveboxPainter(c.heaterOn, time),
-            TutorialStage.windowCircuit => _CircuitPainter(c),
-            _ => _SnowPainter(
-              time: time,
-              clear:
-                  c.stage == TutorialStage.departure ||
-                  c.stage == TutorialStage.arrival ||
-                  c.stage == TutorialStage.result,
-              shelter:
-                  c.stage == TutorialStage.arrival ||
-                  c.stage == TutorialStage.result,
-              windshield: c.stage == TutorialStage.wipers,
-            ),
-          },
-          child: const SizedBox.expand(),
-        ),
+        child: switch (c.stage) {
+          TutorialStage.ventilation => VentilationDashboard(controller: c),
+          TutorialStage.escape => EscapeView(controller: c, time: time),
+          _ => CustomPaint(
+            painter: switch (c.stage) {
+              TutorialStage.power => _CarPainter(c),
+              TutorialStage.glovebox => _GloveboxPainter(c.heaterOn, time),
+              _ => _SnowPainter(
+                time: time,
+                clear:
+                    c.stage == TutorialStage.arrival ||
+                    c.stage == TutorialStage.result,
+                shelter:
+                    c.stage == TutorialStage.arrival ||
+                    c.stage == TutorialStage.result,
+              ),
+            },
+            child: const SizedBox.expand(),
+          ),
+        },
       ),
     );
   }
@@ -139,8 +139,8 @@ class _CarPainter extends CustomPainter {
     const positions = [
       Offset(195, 250),
       Offset(295, 250),
-      Offset(295, 160),
       Offset(195, 160),
+      Offset(295, 160),
     ];
     const battery = Offset(245, 326);
     if (c.stage == TutorialStage.power) {
@@ -198,12 +198,8 @@ class _CarPainter extends CustomPainter {
     }
     for (final seat in CarSeat.values) {
       final p = positions[seat.index];
-      final connected = c.stage == TutorialStage.departure
-          ? c.belts[areaForSeat(seat)] == true
-          : c.lights[seat]!;
-      final color = c.stage == TutorialStage.departure
-          ? TutorialColors.success
-          : TutorialColors.warm;
+      final connected = c.lights[seat]!;
+      const color = TutorialColors.warm;
       if (connected) {
         canvas.drawCircle(
           p,
@@ -221,7 +217,7 @@ class _CarPainter extends CustomPainter {
         box,
         Paint()
           ..color = connected
-              ? Color.lerp(const Color(0xFF112638), color, .14)!
+              ? const Color(0xFF473A2D)
               : const Color(0xFF112638),
       );
       canvas.drawRRect(
@@ -231,50 +227,23 @@ class _CarPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2,
       );
-      if (c.stage == TutorialStage.departure) {
-        canvas.drawCircle(
-          p.translate(0, -10),
-          7,
-          Paint()..color = connected ? color : TutorialColors.muted,
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromCenter(center: p.translate(0, 11), width: 23, height: 22),
-            const Radius.circular(7),
-          ),
-          Paint()
-            ..color = connected
-                ? color.withValues(alpha: .5)
-                : TutorialColors.border,
-        );
-        if (connected) {
-          canvas.drawLine(
-            p.translate(-15, -5),
-            p.translate(15, 20),
-            Paint()
-              ..color = color
-              ..strokeWidth = 3,
-          );
-        }
-      } else {
-        canvas.drawCircle(
-          p,
-          9,
-          Paint()
-            ..color = connected
-                ? color
-                : TutorialColors.ice.withValues(alpha: .32),
-        );
-        canvas.drawLine(
-          p.translate(-5, 15),
-          p.translate(5, 15),
-          Paint()
-            ..color = connected
-                ? color
-                : TutorialColors.ice.withValues(alpha: .32)
-            ..strokeWidth = 3,
-        );
-      }
+      canvas.drawCircle(
+        p,
+        9,
+        Paint()
+          ..color = connected
+              ? color
+              : TutorialColors.ice.withValues(alpha: .32),
+      );
+      canvas.drawLine(
+        p.translate(-5, 15),
+        p.translate(5, 15),
+        Paint()
+          ..color = connected
+              ? color
+              : TutorialColors.ice.withValues(alpha: .32)
+          ..strokeWidth = 3,
+      );
       final labelX = seat == CarSeat.rearLeft || seat == CarSeat.driver
           ? 72.0
           : 418.0;
@@ -287,9 +256,7 @@ class _CarPainter extends CustomPainter {
       );
       _label(
         canvas,
-        c.stage == TutorialStage.departure
-            ? (connected ? '연결됨' : '미연결')
-            : (connected ? 'ON' : 'OFF'),
+        connected ? 'ON' : 'OFF',
         Offset(labelX, p.dy + 15),
         color: connected ? color : TutorialColors.muted,
         size: 12,
@@ -307,107 +274,6 @@ class _CarPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CarPainter oldDelegate) => true;
-}
-
-class _BeltsPainter extends CustomPainter {
-  _BeltsPainter(this.c);
-  final TutorialController c;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = math.min(size.width / 490, size.height / 400);
-    canvas.save();
-    canvas.translate(
-      (size.width - 490 * scale) / 2,
-      (size.height - 400 * scale) / 2,
-    );
-    canvas.scale(scale);
-    final frame = RRect.fromRectAndRadius(
-      const Rect.fromLTWH(85, 22, 320, 340),
-      const Radius.circular(42),
-    );
-    canvas.drawRRect(frame, Paint()..color = const Color(0xFF102436));
-    canvas.drawRRect(
-      frame,
-      Paint()
-        ..color = TutorialColors.ice.withValues(alpha: .45)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
-    );
-    _label(
-      canvas,
-      '차량 앞쪽 ↑',
-      const Offset(245, 42),
-      color: TutorialColors.ice,
-      size: 12,
-    );
-    if (c.beltSeats.isEmpty) {
-      _label(canvas, '좌석 상태 확인 중', const Offset(245, 200));
-    }
-    final rows = c.beltSeats.map((s) => s.row).toSet().toList()..sort();
-    for (final seat in c.beltSeats) {
-      final row = rows.indexOf(seat.row);
-      final x = 150.0 + seat.column * 95;
-      final y = rows.length <= 2 ? 120.0 + row * 130 : 103.0 + row * 90;
-      final value = c.belts[seat.id];
-      final color = value == true
-          ? TutorialColors.success
-          : value == false
-          ? TutorialColors.warning
-          : TutorialColors.muted;
-      final box = RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset(x, y), width: 63, height: 61),
-        const Radius.circular(13),
-      );
-      canvas.drawRRect(box, Paint()..color = color.withValues(alpha: .08));
-      canvas.drawRRect(
-        box,
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2,
-      );
-      canvas.drawCircle(Offset(x, y - 12), 7, Paint()..color = color);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x - 12, y - 2, 24, 23),
-          const Radius.circular(6),
-        ),
-        Paint()..color = color.withValues(alpha: .4),
-      );
-      if (value == true) {
-        canvas.drawLine(
-          Offset(x - 18, y - 12),
-          Offset(x + 18, y + 24),
-          Paint()
-            ..color = color
-            ..strokeWidth = 3,
-        );
-      }
-      _label(canvas, seat.label, Offset(x, y + 43), color: color, size: 11);
-      _label(
-        canvas,
-        value == true
-            ? '연결됨'
-            : value == false
-            ? '미연결'
-            : '감지 대기',
-        Offset(x, y + 60),
-        color: color,
-        size: 10,
-      );
-    }
-    _label(
-      canvas,
-      '${c.buckledCount} / ${c.beltSeats.length} 좌석 연결',
-      const Offset(245, 381),
-      color: TutorialColors.success,
-      size: 16,
-    );
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant _BeltsPainter oldDelegate) => true;
 }
 
 class _GloveboxPainter extends CustomPainter {
@@ -495,149 +361,11 @@ class _GloveboxPainter extends CustomPainter {
   bool shouldRepaint(covariant _GloveboxPainter oldDelegate) => true;
 }
 
-class _CircuitPainter extends CustomPainter {
-  _CircuitPainter(this.c);
-  final TutorialController c;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    // Include every reachable endpoint (-1..6), even at the travel limits.
-    double rowY(num row) => h * .26 + row * h * .08;
-    final gridPaint = Paint()
-      ..color = TutorialColors.ice.withValues(alpha: .06)
-      ..strokeWidth = 1;
-    for (int row = -1; row <= 6; row++) {
-      canvas.drawLine(
-        Offset(w * .05, rowY(row)),
-        Offset(w * .95, rowY(row)),
-        gridPaint,
-      );
-    }
-    _label(
-      canvas,
-      'WINDOW CIRCUIT',
-      Offset(w * .5, h * .07),
-      color: TutorialColors.ice,
-      size: 13,
-    );
-    final wire = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = 5;
-    canvas.drawLine(
-      Offset(w * .04, rowY(2)),
-      Offset(w * .13, rowY(2)),
-      wire..color = TutorialColors.warm,
-    );
-    canvas.drawCircle(
-      Offset(w * .04, rowY(2)),
-      7,
-      Paint()..color = TutorialColors.warm,
-    );
-    for (int i = 0; i < 4; i++) {
-      final x = w * (.21 + i * .19);
-      final inlet = TutorialController.circuitBaseIn[i] + c.circuitOffsets[i];
-      final outlet = inlet + TutorialController.circuitDelta[i];
-      final color = TutorialColors.seatColors[i];
-      final rail = Rect.fromLTWH(x - w * .06, h * .14, w * .12, h * .69);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rail, const Radius.circular(10)),
-        Paint()..color = color.withValues(alpha: .045),
-      );
-      canvas.drawLine(
-        Offset(x, h * .15),
-        Offset(x, h * .80),
-        Paint()
-          ..color = color.withValues(alpha: .16)
-          ..strokeWidth = 1,
-      );
-      canvas.save();
-      canvas.clipRect(Rect.fromLTWH(0, h * .14, w, h * .69));
-      final path = Path()
-        ..moveTo(x - w * .075, rowY(inlet))
-        ..lineTo(x, rowY(inlet))
-        ..lineTo(x, rowY(outlet))
-        ..lineTo(x + w * .075, rowY(outlet));
-      if (i < c.connectedGates) {
-        canvas.drawPath(
-          path,
-          Paint()
-            ..color = color.withValues(alpha: .28)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 16
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
-        );
-      }
-      canvas.drawPath(path, wire..color = color);
-      canvas.drawCircle(
-        Offset(x - w * .075, rowY(inlet)),
-        5,
-        Paint()..color = color,
-      );
-      canvas.drawCircle(
-        Offset(x + w * .075, rowY(outlet)),
-        5,
-        Paint()..color = color,
-      );
-      if (i < 3) {
-        canvas.drawLine(
-          Offset(x + w * .075, rowY(outlet)),
-          Offset(x + w * .115, rowY(outlet)),
-          wire..color = i < c.connectedGates ? color : TutorialColors.border,
-        );
-      }
-      canvas.restore();
-      _label(
-        canvas,
-        CarSeat.values[i].shortLabel,
-        Offset(x, h * .89),
-        color: color,
-        size: 12,
-      );
-    }
-    canvas.drawLine(
-      Offset(w * .855, rowY(2)),
-      Offset(w * .96, rowY(2)),
-      wire..color = TutorialColors.ice.withValues(alpha: .4),
-    );
-    canvas.drawCircle(
-      Offset(w * .96, rowY(2)),
-      8,
-      Paint()..color = TutorialColors.ice,
-    );
-    _label(
-      canvas,
-      '출구',
-      Offset(w * .955, rowY(2) + 25),
-      color: TutorialColors.ice,
-      size: 11,
-    );
-    _label(
-      canvas,
-      '전류 연결 ${c.connectedGates} / 4',
-      Offset(w * .5, h * .96),
-      color: TutorialColors.warm,
-      size: 13,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _CircuitPainter oldDelegate) => true;
-}
-
 class _SnowPainter extends CustomPainter {
-  _SnowPainter({
-    required this.time,
-    this.clear = false,
-    this.shelter = false,
-    this.windshield = false,
-  });
+  _SnowPainter({required this.time, this.clear = false, this.shelter = false});
   final double time;
   final bool clear;
   final bool shelter;
-  final bool windshield;
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
@@ -760,44 +488,6 @@ class _SnowPainter extends CustomPainter {
           ..color = Colors.white.withValues(
             alpha: .15 + random.nextDouble() * .4,
           ),
-      );
-    }
-    if (windshield) {
-      canvas.drawRect(
-        Offset.zero & size,
-        Paint()..color = const Color(0xFFB5CBDA).withValues(alpha: .30),
-      );
-      for (int i = 0; i < 9; i++) {
-        canvas.drawCircle(
-          Offset(w * ((i * .24) % 1), h * ((i * .37) % 1)),
-          w * .16,
-          Paint()
-            ..color = const Color(0xFFD7E2EA).withValues(alpha: .18)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
-        );
-      }
-      canvas.drawLine(
-        Offset(w * .48, h * .95),
-        Offset(w * .12, h * .67),
-        Paint()
-          ..color = const Color(0xFF0B1620)
-          ..strokeWidth = 8
-          ..strokeCap = StrokeCap.round,
-      );
-      canvas.drawLine(
-        Offset(w * .75, h * .95),
-        Offset(w * .40, h * .67),
-        Paint()
-          ..color = const Color(0xFF0B1620)
-          ..strokeWidth = 8
-          ..strokeCap = StrokeCap.round,
-      );
-      _label(
-        canvas,
-        '눈 때문에 앞이 보이지 않아요',
-        Offset(w * .5, h * .30),
-        color: Colors.white,
-        size: 18,
       );
     }
   }

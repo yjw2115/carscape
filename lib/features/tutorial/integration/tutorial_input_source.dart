@@ -2,10 +2,12 @@ import 'dart:async';
 import '../domain/tutorial_models.dart';
 
 /// Integration seam for the entry/vehicle owner. Pass an already normalized,
-/// read-only stream to TutorialScreen. No shared device catalog is invented.
+/// observation stream to TutorialScreen. The power chapter can reset reading lights.
 /// Android's implementation uses the Vehicle SDK. An alternative shared adapter
-/// must preserve initial-read flags, capability seat inventory, and actual values.
+/// must preserve initial-read flags, door inventory, and actual values.
 abstract interface class TutorialInputSource {
   Stream<TutorialVehicleInput> get events;
   Future<void> refresh();
+  Future<void> setLightPuzzleActive(bool active);
+  Future<void> resetReadingLights();
 }

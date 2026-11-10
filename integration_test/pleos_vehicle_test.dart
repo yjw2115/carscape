@@ -1,7 +1,8 @@
-// Run only against the local Pleos AVD with its Virtual Console browser open.
-// The HTTP writes below belong to the test fixture, never the application.
+// Runs only against the local Pleos AVD. Keep its Virtual Console browser open.
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:carscape/features/tutorial/domain/tutorial_controller.dart';
@@ -22,7 +23,7 @@ class _Captions implements NarrationPlayer {
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   testWidgets(
-    'real Vehicle SDK observes console lights, heater, windows, wiper and all belt areas',
+    'actual SDK: light OFF reset, ventilation hazards, wipe then turn right to finish',
     (tester) async {
       final c = TutorialController();
       final http = HttpClient();
@@ -31,22 +32,21 @@ void main() {
           Uri.http('127.0.0.1:8088', path, query),
         );
         final response = await request.close();
-        final status = response.statusCode;
-        await response.drain<void>();
+        final body = await utf8.decoder.bind(response).join();
+        expect(response.statusCode, 200, reason: body);
         expect(
-          status,
-          200,
-          reason:
-              'Console fixture rejected $path; keep the PC console browser open.',
+          body,
+          isNot(contains('emulator_inactive')),
+          reason: 'Keep the console browser open',
         );
       }
 
-      Future<void> until(bool Function() condition, String description) async {
-        final limit = DateTime.now().add(const Duration(seconds: 25));
-        while (!condition()) {
-          if (DateTime.now().isAfter(limit)) {
+      Future<void> until(bool Function() predicate, String label) async {
+        final deadline = DateTime.now().add(const Duration(seconds: 25));
+        while (!predicate()) {
+          if (DateTime.now().isAfter(deadline)) {
             fail(
-              '$description; stage=${c.stage} problems=${c.vehicleIssues} capabilities=${c.vehicleCapabilities}',
+              '$label: ${c.stage}, ${c.vehicleIssues}, ${c.vehicleCapabilities}',
             );
           }
           await tester.pump(const Duration(milliseconds: 100));
@@ -56,8 +56,7 @@ void main() {
 
       Future<void> dialogue() async {
         while (c.dialogueActive) {
-          await until(() => !c.paused, 'Narration is paused');
-          await tester.pump();
+          await until(() => !c.paused, 'Narration paused');
           final next = find.byKey(const Key('next-dialogue'));
           await tester.ensureVisible(next);
           await tester.tap(next);
@@ -71,129 +70,190 @@ void main() {
           await binding.convertFlutterSurfaceToImage();
           converted = true;
         }
-        await tester.pump();
-        final bytes = await binding.takeScreenshot(name);
-        await File(
-          '${Directory.systemTemp.path}/$name.png',
-        ).writeAsBytes(bytes, flush: true);
+        // Let the test binding's pointer crosshairs fade before exporting frames.
+        for (int i = 0; i < 8; i++) {
+          for (final view in binding.renderViews) {
+            view.markNeedsPaint();
+          }
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        await binding.takeScreenshot(name);
       }
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: tutorialTheme(),
-          home: TutorialScreen(controller: c, narrationPlayer: _Captions()),
-        ),
-      );
-      await until(() => c.readyToStart && c.liveVehicleMode, 'SDK connection');
-      expect(c.vehicleCapabilities['heater'], isTrue);
-      expect(c.beltSeats.map((seat) => seat.id), contains('ROW_2_CENTER'));
-      for (final area in [
-        'front_left',
-        'front_right',
-        'rear_left',
-        'rear_right',
-      ]) {
-        await put('/vehicle/reading-lights', {'area': area, 'value': 'false'});
+      Future<void> assertActualLightsOff() async {
+        final diagnostic = await const MethodChannel(
+          'io.carscape/tutorial_vehicle',
+        ).invokeMapMethod<String, dynamic>('diagnostics');
+        final values = Map<String, dynamic>.from(diagnostic!['values'] as Map);
+        for (final seat in CarSeat.values) {
+          expect(values['cabinLight:${areaForSeat(seat)}'], false);
+        }
+        final request = await http.getUrl(
+          Uri.http('127.0.0.1:8088', '/vehicle/state'),
+        );
+        final response = await request.close();
+        final state =
+            jsonDecode(await utf8.decoder.bind(response).join()) as Map;
+        expect(
+          (state['body']['reading_lights'] as Map).values.every(
+            (v) => v == false,
+          ),
+          isTrue,
+          reason: 'Console state must reflect the OFF reset too',
+        );
       }
-      await put('/vehicle/hvac', {
-        'power': 'false',
-        'fan_speed': '2',
-        'passenger_temp': '22',
-      });
-      await put('/vehicle/body', {
-        'window_fl': '0',
-        'window_fr': '0',
-        'window_rl': '0',
-        'window_rr': '0',
-        'front_wiper': 'Off',
-      });
-      await tester.pump(const Duration(seconds: 2));
-      await tester.ensureVisible(find.byKey(const Key('start-tutorial')));
-      await tester.tap(find.byKey(const Key('start-tutorial')));
-      await tester.pump();
-      await dialogue();
-      expect(find.text('지금 할 일'), findsNothing);
-      expect(find.byKey(const Key('light-driver')), findsNothing);
-      await capture('carscape-vehicle-power');
 
-      const areas = ['rear_left', 'rear_right', 'front_right', 'front_left'];
-      for (int i = 0; i < 4; i++) {
+      Future<void> resetFixture() async {
+        await put('/vehicle/gear', {'gear': 'Park'});
+        await put('/vehicle/controls', {'steering': '0'});
+        await put('/vehicle/body', {
+          'door_fl': 'false',
+          'door_fr': 'false',
+          'door_rl': 'false',
+          'door_rr': 'false',
+          'trunk': 'false',
+          'frunk': 'false',
+          'window_fl': '0',
+          'window_fr': '0',
+          'window_rl': '0',
+          'window_rr': '0',
+          'front_wiper': 'Off',
+        });
+        await put('/vehicle/hvac', {
+          'power': 'false',
+          'fan_speed': '2',
+          'passenger_temp': '22',
+        });
+        for (final area in [
+          'front_left',
+          'front_right',
+          'rear_left',
+          'rear_right',
+        ]) {
+          await put('/vehicle/reading-lights', {
+            'area': area,
+            'value': 'false',
+          });
+        }
+      }
+
+      try {
+        await resetFixture();
+        // Deliberately leave a wrong lamp ON before starting the game.
         await put('/vehicle/reading-lights', {
-          'area': areas[i],
+          'area': 'front_left',
           'value': 'true',
         });
-        await until(() => c.powerCount >= i + 1, 'Reading light ${areas[i]}');
+        await tester.pumpWidget(
+          MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: tutorialTheme(),
+            home: TutorialScreen(controller: c, narrationPlayer: _Captions()),
+          ),
+        );
+        await until(() => c.readyToStart, 'SDK ready');
+        expect(c.vehicleCapabilities['lightControl'], true);
+        expect(c.vehicleCapabilities['steering'], true);
+        expect(c.vehicleCapabilities['doors'], contains('REAR'));
+        await tester.ensureVisible(find.byKey(const Key('start-tutorial')));
+        await tester.tap(find.byKey(const Key('start-tutorial')));
+        await tester.pump();
+        await dialogue();
+        await until(() => !c.lightsResetting, 'Pre-existing lamp OFF reset');
+        await assertActualLightsOff();
+        final firstReset = c.lightResetRevision;
+        await put('/vehicle/reading-lights', {
+          'area': 'front_right',
+          'value': 'true',
+        });
+        await until(
+          () => c.lightResetRevision > firstReset && !c.lightsResetting,
+          'Wrong sequence OFF reset',
+        );
+        await assertActualLightsOff();
+        expect(c.powerCount, 0);
+        await capture('carscape-vehicle-power');
+        for (final area in [
+          'rear_left',
+          'rear_right',
+          'front_left',
+          'front_right',
+        ]) {
+          final count = c.powerCount;
+          await put('/vehicle/reading-lights', {'area': area, 'value': 'true'});
+          await until(() => c.powerCount == count + 1, 'Ordered lamp $area');
+        }
+        expect(c.stage, TutorialStage.glovebox);
+        await dialogue();
+        await put('/vehicle/hvac', {
+          'power': 'true',
+          'fan_speed': '2',
+          'passenger_temp': '28',
+        });
+        await until(
+          () => c.stage == TutorialStage.ventilation,
+          'Passenger heat',
+        );
+        await dialogue();
+        expect(find.text('지금 할 일'), findsNothing);
+        expect(find.byKey(const Key('window-driver-down')), findsNothing);
+        await capture('carscape-vehicle-gas');
+        await put('/vehicle/body', {'window_fl': '100'});
+        await until(
+          () => c.coldCommentPlayed && c.frost > .4,
+          'Too much window opening freezes display',
+        );
+        expect(c.stage, TutorialStage.ventilation);
+        await capture('carscape-vehicle-freezing');
+        await put('/vehicle/body', {
+          'window_fl': '20',
+          'window_fr': '20',
+          'window_rl': '20',
+          'window_rr': '20',
+          'trunk': 'true',
+        });
+        await until(() => c.doors['REAR'] == true, 'Actual trunk sensor');
+        await tester.pump(const Duration(seconds: 2));
+        expect(c.stage, TutorialStage.ventilation);
+        expect(c.coldLoss, greaterThanOrEqualTo(14));
+        await put('/vehicle/body', {'trunk': 'false', 'door_fl': 'true'});
+        await until(() => c.doors['ROW_1_LEFT'] == true, 'Actual door sensor');
+        expect(c.stage, TutorialStage.ventilation);
+        await put('/vehicle/body', {'door_fl': 'false'});
+        await until(
+          () => c.stage == TutorialStage.escape,
+          'Four windows and warm recovery',
+        );
+        await dialogue();
+        await capture('carscape-vehicle-frost');
+        await put('/vehicle/controls', {'steering': '45'});
+        await until(
+          () => c.steeringAngle != null && c.steeringAngle! >= 30,
+          'Early right steering',
+        );
+        expect(c.stage, TutorialStage.escape);
+        await put('/vehicle/body', {'front_wiper': 'Low'});
+        await until(() => c.shelterVisible, 'Actual wiper clears snow');
+        expect(c.stage, TutorialStage.escape);
+        await capture('carscape-vehicle-shelter');
+        await put('/vehicle/controls', {'steering': '0'});
+        await until(() => c.steeringAngle!.abs() <= 10, 'Centered steering');
+        await put('/vehicle/controls', {'steering': '45'});
+        await until(
+          () => c.stage == TutorialStage.arrival,
+          'Actual right turn',
+        );
+        await dialogue();
+        expect(c.stage, TutorialStage.result);
+        expect(c.result!.usedTestNavigation, false);
+        await capture('carscape-vehicle-result');
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+        c.dispose();
+        await resetFixture();
+        http.close(force: true);
       }
-      await until(() => c.stage == TutorialStage.glovebox, 'Light sequence');
-      await dialogue();
-      expect(find.byKey(const Key('heater')), findsNothing);
-      expect(c.gloveboxSensorAvailable, isFalse);
-      await put('/vehicle/hvac', {
-        'power': 'true',
-        'fan_speed': '2',
-        'passenger_temp': '28',
-      });
-      await until(
-        () => c.stage == TutorialStage.windowRequest,
-        'Warm passenger airflow',
-      );
-      await dialogue();
-      await put('/vehicle/body', {'window_fl': '10'});
-      await until(
-        () => c.stage == TutorialStage.windowCircuit,
-        'Window movement trigger',
-      );
-      await dialogue();
-      for (final pair in const [
-        ('window_rl', '20'),
-        ('window_rr', '30'),
-        ('window_fr', '10'),
-        ('window_fl', '20'),
-      ]) {
-        await put('/vehicle/body', {pair.$1: pair.$2});
-        await tester.pump(const Duration(milliseconds: 600));
-      }
-      await until(
-        () => c.stage == TutorialStage.wipers,
-        'Four real window positions',
-      );
-      await dialogue();
-      await put('/vehicle/body', {'front_wiper': 'Low'});
-      await until(
-        () => c.stage == TutorialStage.departure,
-        'Front wiper actual state',
-      );
-      await dialogue();
-      await until(
-        () => c.belts.values.every((value) => value != null),
-        'All buckle sensors, including rear center',
-      );
-      expect(c.belts['ROW_2_CENTER'], isFalse);
-      expect(c.allBelts, isFalse);
-      expect(find.byKey(const Key('accelerator')), findsNothing);
-      expect(find.byKey(const Key('belt-ROW_2_CENTER')), findsNothing);
-      await capture('carscape-vehicle-belts');
-
-      // This console version has no buckle input. Positive/all-buckled completion
-      // is separately covered with normalized observations in unit tests.
-      await put('/vehicle/body', {
-        'front_wiper': 'Off',
-        'window_fl': '0',
-        'window_fr': '0',
-        'window_rl': '0',
-        'window_rr': '0',
-      });
-      await put('/vehicle/hvac', {
-        'power': 'false',
-        'fan_speed': '3',
-        'passenger_temp': '22',
-      });
-      for (final area in areas) {
-        await put('/vehicle/reading-lights', {'area': area, 'value': 'false'});
-      }
-      await tester.pumpWidget(const SizedBox());
-      c.dispose();
-      http.close(force: true);
     },
     timeout: const Timeout(Duration(minutes: 5)),
   );

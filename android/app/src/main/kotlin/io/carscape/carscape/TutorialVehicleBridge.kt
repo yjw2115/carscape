@@ -7,12 +7,15 @@ import android.util.Log
 import ai.pleos.playground.vehicle.Vehicle
 import ai.pleos.playground.vehicle.api.model.area.SeatArea
 import ai.pleos.playground.vehicle.api.model.area.WindowArea
+import ai.pleos.playground.vehicle.api.model.area.DoorArea
 import ai.pleos.playground.vehicle.api.model.capability.AccessType
 import ai.pleos.playground.vehicle.api.model.capability.AreaBounds
 import ai.pleos.playground.vehicle.api.model.capability.CapabilityConfig
 import ai.pleos.playground.vehicle.constant.area.SeatValue
 import ai.pleos.playground.vehicle.constant.area.WindowValue
+import ai.pleos.playground.vehicle.constant.area.DoorValue
 import ai.pleos.playground.vehicle.constant.control.LightState
+import ai.pleos.playground.vehicle.constant.control.LightSwitch
 import ai.pleos.playground.vehicle.constant.control.VehicleGear
 import ai.pleos.playground.vehicle.constant.control.WiperState
 import ai.pleos.playground.vehicle.constant.unit.TemperatureUnit
@@ -21,7 +24,7 @@ import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
-/** Feature-scoped, read-only adapter. It never calls a Vehicle set/move API. */
+/** Reads vehicle observations; the light chapter alone may switch reading lights OFF. */
 @Suppress("DEPRECATION") // SDK 2.3.2 Gear read is deprecated, not private; fail closed if unavailable.
 class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : EventChannel.StreamHandler {
     private val appContext = context.applicationContext
@@ -40,6 +43,10 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
     private val problems = linkedMapOf<String, String>()
     private var checksPending = 0
     private var pollCount = 0
+    private var lightPuzzleActive = false
+    private var resetResult: MethodChannel.Result? = null
+    private var resetToken = 0
+    private val lightOffActions = linkedMapOf<String, (() -> Unit, (Exception) -> Unit) -> Unit>()
     private val poll = object : Runnable {
         override fun run() {
             if (vehicle == null || sink == null) return
@@ -57,6 +64,12 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
             when (call.method) {
                 "refresh" -> { readers.values.toList().forEach { it() }; result.success(null) }
                 "diagnostics" -> result.success(mapOf("capabilities" to capabilities, "problems" to problems, "values" to values))
+                "setLightPuzzleActive" -> {
+                    lightPuzzleActive = call.arguments == true
+                    if (!lightPuzzleActive) cancelLightReset()
+                    result.success(null)
+                }
+                "resetReadingLights" -> resetReadingLights(result)
                 else -> result.notImplemented()
             }
         }
@@ -86,10 +99,11 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
     private fun seatId(area: SeatArea) = area.values.joinToString("+") { it.name }
     private fun seatArea(value: SeatValue) = SeatArea(value)
     private fun windowArea(value: WindowValue) = WindowArea(value)
-    private val puzzleSeats = listOf(SeatValue.ROW_2_LEFT, SeatValue.ROW_2_RIGHT, SeatValue.ROW_1_RIGHT, SeatValue.ROW_1_LEFT)
+    private val puzzleSeats = listOf(SeatValue.ROW_2_LEFT, SeatValue.ROW_2_RIGHT, SeatValue.ROW_1_LEFT, SeatValue.ROW_1_RIGHT)
 
     private fun send(event: Map<String, Any?>) {
-        main.post { sink?.success(event) }
+        val target = sink
+        main.post { if (sink === target) target?.success(event) }
     }
 
     private fun issue(feature: String, message: String) {
@@ -117,9 +131,8 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
             pending[key] = request
             val observedKey = when {
                 key.startsWith("light:") -> "cabinLight:${key.removePrefix("light:")}"
-                key.startsWith("belt:") -> "seatbelt:${key.removePrefix("belt:")}"
                 key.startsWith("heater") -> "passengerHeater:global"
-                key == "wiper" || key == "parking" -> "$key:global"
+                key == "wiper" || key == "parking" || key == "steering" -> "$key:global"
                 else -> key
             }
             val hadValue = values.containsKey(observedKey)
@@ -128,11 +141,12 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
             fun changedWhileReading() = hadValue != values.containsKey(observedKey) || beforeRead != values[observedKey]
             fun unavailable() {
                 when {
-                    key.startsWith("belt:") -> emit("seatbelt", null, key.removePrefix("belt:"))
                     key.startsWith("light:") -> emit("cabinLight", null, key.removePrefix("light:"))
                     key.startsWith("window:") -> emit("window", null, key.removePrefix("window:"))
+                    key.startsWith("door:") -> emit("door", null, key.removePrefix("door:"))
                     key.startsWith("heater") -> emit("passengerHeater", null)
                     key == "wiper" -> emit("wiper", null)
+                    key == "steering" -> emit("steering", null)
                     key == "parking" -> emit("parking", false)
                 }
             }
@@ -203,7 +217,29 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
                 }
                 try { light.registerReadingLightState(area, listener); cleanup.add { light.unregisterReadingLightState(area, listener) } } catch (e: Exception) { issue("lightSubscription:${code.name}", e.message ?: "구독 실패") }
             }
-            checkFinished(session)
+            light.checkReadingLightSwitchCapabilities(onComplete = { switchConfig, switches -> main.post {
+                if (!active(session)) return@post
+                val writable = switchConfig.accessType == AccessType.WRITE || switchConfig.accessType == AccessType.READ_WRITE
+                supported.forEach { code ->
+                    val area = seatArea(code)
+                    if (writable && switches[area]?.contains(LightSwitch.OFF) == true) {
+                        lightOffActions[code.name] = { ok, fail ->
+                            light.setReadingLightSwitch(area, LightSwitch.OFF, { _ ->
+                                // Read back the physical state, not merely the requested switch.
+                                light.getCurrentReadingLightState(area, { state -> main.post {
+                                    if (active(session)) {
+                                        emit("cabinLight", state?.let { it == LightState.ON }, code.name)
+                                        if (state == LightState.OFF) ok() else fail(IllegalStateException("조명이 아직 켜져 있습니다"))
+                                    }
+                                } }, fail)
+                            }, fail)
+                        }
+                    }
+                }
+                capabilities["lightControl"] = lightOffActions.size == 4
+                if (lightOffActions.size != 4) issue("lightControl", "네 독서등을 끄는 기능을 지원하지 않습니다")
+                checkFinished(session)
+            } }, onFailed = { issue("lightControl", it.message ?: "독서등 제어 확인 실패"); checkFinished(session) })
         } }, onFailed = { issue("lights", it.message ?: "조명 지원 확인 실패"); checkFinished(session) })
 
         val hvac = sdk.getHVAC()
@@ -285,31 +321,48 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
             checkFinished(session)
         } }, onFailed = { issue("wiper", it.message ?: "와이퍼 지원 확인 실패"); checkFinished(session) })
 
-        val seat = sdk.getSeat()
-        seat.checkSeatOccupancyCapabilities(onComplete = { config, areas -> main.post {
+        val door = sdk.getDoor()
+        door.checkDoorPositionCapabilities(onComplete = { config, areas -> main.post {
             if (!active(session)) return@post
-            capabilities["seatInventory"] = if (readable(config)) areas.map(::seatId) else emptyList<String>()
-            checkFinished(session)
-        } }, onFailed = { issue("seatInventory", it.message ?: "좌석 목록 확인 실패"); checkFinished(session) })
-        seat.checkSeatBeltBuckledCapabilities(onComplete = { config, areas -> main.post {
-            if (!active(session)) return@post
-            val supported = if (readable(config)) areas else emptyList()
-            // Preserve every reported area, including ROW_2_CENTER and row 3.
-            capabilities["beltSeats"] = supported.map(::seatId)
-            if (supported.isEmpty()) issue("belts", "차량 안전벨트의 지원 좌석을 확인할 수 없습니다")
-            supported.forEach { area ->
-                val id = seatId(area)
-                val output: (Any?) -> Unit = { emit("seatbelt", it as? Boolean, id) }
-                installReader("belt:$id", session, { ok, fail -> seat.getCurrentSeatBeltBuckledState(area, ok, fail) }, output)
-                val listener = object : SeatBeltBuckledStateListener {
-                    override fun onSeatBeltBuckledStateUpdated(buckled: Boolean?) { if (active(session) && buckled != null) main.post { output(buckled) } }
-                    override fun onFailed(e: Exception) { issue("belt:$id", e.message ?: "벨트 감지 실패") }
+            val supported = areas.filter { (area, bounds) -> readable(config) && area.values.size == 1 && bounds.maxValue > bounds.minValue }
+            capabilities["doors"] = supported.keys.map { it.values.single().name }
+            val required = puzzleSeats.map { it.name }.toSet() + "REAR"
+            if (!supported.keys.map { it.values.single().name }.containsAll(required)) issue("doors", "네 문과 트렁크의 열림 상태를 모두 읽을 수 없습니다")
+            supported.forEach { (area, bounds) ->
+                val id = area.values.single().name
+                val output: (Any?) -> Unit = { raw ->
+                    val value = raw as? Int
+                    emit("door", value?.takeIf { it in bounds.minValue..bounds.maxValue }?.let { it > bounds.minValue }, id)
                 }
-                try { seat.registerSeatBeltBuckledState(area, listener); cleanup.add { seat.unregisterSeatBeltBuckledState(area, listener) } } catch (e: Exception) { issue("beltSubscription:$id", e.message ?: "구독 실패") }
+                installReader("door:$id", session, { ok, fail -> door.getCurrentDoorPosition(area, ok, fail) }, output)
+                val listener = object : DoorPositionListener {
+                    override fun onPositionUpdated(pos: Int?) { if (active(session)) main.post { output(pos) } }
+                    override fun onFailed(e: Exception) { issue("door:$id", e.message ?: "문 감지 실패") }
+                }
+                try { door.registerDoorPosition(area, listener); cleanup.add { door.unregisterDoorPosition(area, listener) } } catch (e: Exception) { issue("door:$id", e.message ?: "문 구독 실패") }
             }
             checkFinished(session)
-        } }, onFailed = { issue("belts", it.message ?: "안전벨트 지원 확인 실패"); checkFinished(session) })
+        } }, onFailed = { issue("doors", it.message ?: "문 지원 확인 실패"); checkFinished(session) })
 
+        val steering = sdk.getSteeringWheel()
+        steering.checkSteeringWheelAngleCapabilities(onComplete = { config, bounds -> main.post {
+            if (!active(session)) return@post
+            val supported = readable(config) && bounds.maxValue >= 0 && bounds.minValue <= -30
+            capabilities["steering"] = supported
+            if (!supported) issue("steering", "휠 각도를 읽을 수 없습니다")
+            if (supported) {
+                // Pleos SDK 2.3.2 / AVD 2.1 reports clockwise as negative.
+                // Normalize the game contract to clockwise/right positive.
+                val output: (Any?) -> Unit = { emit("steering", (it as? Float)?.let { angle -> -angle.toDouble() }) }
+                installReader("steering", session, { ok, fail -> steering.getCurrentSteeringWheelAngle(ok, fail) }, output)
+                val listener = object : SteeringWheelAngleListener {
+                    override fun onSteeringWheelAngleUpdated(angle: Float?) { if (active(session)) main.post { output(angle) } }
+                    override fun onFailed(e: Exception) { issue("steering", e.message ?: "휠 감지 실패") }
+                }
+                try { steering.registerSteeringWheelAngle(listener); cleanup.add { steering.unregisterSteeringWheelAngle(listener) } } catch (e: Exception) { issue("steering", e.message ?: "휠 구독 실패") }
+            }
+            checkFinished(session)
+        } }, onFailed = { issue("steering", it.message ?: "휠 지원 확인 실패"); checkFinished(session) })
         // The public SDK exposes glovebox LOCK only, not open/closed position.
         // Never mistake unlocked for opened. This version deliberately uses heater-only fallback.
         checkFinished(session)
@@ -321,7 +374,57 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
         try { sdk.getGear().registerGearSelection(gearListener); cleanup.add { sdk.getGear().unregisterGearSelection(gearListener) } } catch (e: Exception) { issue("parking", e.message ?: "기어 구독 실패") }
     }
 
+    private fun cancelLightReset() {
+        ++resetToken
+        resetResult?.error("cancelled", "조명 단계를 벗어났습니다", null)
+        resetResult = null
+    }
+
+    private fun resetReadingLights(result: MethodChannel.Result) {
+        if (!lightPuzzleActive || lightOffActions.size != 4) {
+            result.error("unavailable", "조명 초기화를 사용할 수 없습니다", null)
+            return
+        }
+        cancelLightReset()
+        resetResult = result
+        val token = ++resetToken
+        val session = generation
+        val deadline = android.os.SystemClock.uptimeMillis() + 5000
+        fun attempt() {
+            if (token != resetToken || !active(session) || !lightPuzzleActive) return
+            var remaining = 4
+            var failed = false
+            fun finished(success: Boolean) {
+                main.post {
+                    if (token != resetToken || !active(session)) return@post
+                    if (!success) failed = true
+                    if (--remaining != 0) return@post
+                    val allOff = puzzleSeats.all { values["cabinLight:${it.name}"] == false }
+                    if (!failed && allOff) {
+                        Log.i(TAG, "Reading lights reset: all four actual states OFF")
+                        resetResult?.success(null); resetResult = null; ++resetToken
+                    } else if (android.os.SystemClock.uptimeMillis() < deadline) {
+                        main.postDelayed({ attempt() }, 200)
+                    }
+                }
+            }
+            lightOffActions.values.toList().forEach { action ->
+                try { action({ finished(true) }, { finished(false) }) } catch (_: Exception) { finished(false) }
+            }
+        }
+        main.postDelayed({
+            if (token == resetToken && resetResult != null) {
+                resetResult?.error("timeout", "조명의 실제 Off 상태를 확인하지 못했습니다", null)
+                resetResult = null; ++resetToken
+            }
+        }, 5500)
+        attempt()
+    }
+
     private fun stop() {
+        lightPuzzleActive = false
+        cancelLightReset()
+        lightOffActions.clear()
         ++generation
         main.removeCallbacks(poll)
         cleanup.toList().forEach { try { it() } catch (_: Exception) {} }
