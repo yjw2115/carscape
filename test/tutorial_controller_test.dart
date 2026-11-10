@@ -64,16 +64,20 @@ void main() {
     c.receive(const TutorialVehicleInput(VehicleInputKind.wiper, 1));
     expect(c.stage, TutorialStage.departure);
     finishDialogue(c);
-    c.receive(const TutorialVehicleInput(VehicleInputKind.accelerator, 1));
     expect(c.stage, TutorialStage.departure);
-    for (final seat in CarSeat.values) {
-      c.receive(TutorialVehicleInput(VehicleInputKind.seatbelt, 1, seat: seat));
+    for (final seat in c.beltSeats.where((s) => s.id != 'ROW_2_CENTER')) {
+      c.receive(
+        TutorialVehicleInput(VehicleInputKind.seatbelt, 1, areaId: seat.id),
+      );
     }
-    // A held accelerator cannot complete the stage when the last belt arrives.
-    c.receive(const TutorialVehicleInput(VehicleInputKind.accelerator, 1));
     expect(c.stage, TutorialStage.departure);
-    c.receive(const TutorialVehicleInput(VehicleInputKind.accelerator, 0));
-    c.receive(const TutorialVehicleInput(VehicleInputKind.accelerator, 1));
+    c.receive(
+      const TutorialVehicleInput(
+        VehicleInputKind.seatbelt,
+        1,
+        areaId: 'ROW_2_CENTER',
+      ),
+    );
     expect(c.stage, TutorialStage.arrival);
     finishDialogue(c);
     expect(c.stage, TutorialStage.result);

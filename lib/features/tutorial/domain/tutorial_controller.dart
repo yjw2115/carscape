@@ -3,10 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'tutorial_models.dart';
 import 'tutorial_script.dart';
 
-/// Owns only 문성훈's tutorial flow. Vehicle events and UI simulation use the
-/// same reducer; no vehicle control/write method is exposed here.
+/// Tutorial rules consume observations, never vehicle control commands.
 class TutorialController extends ChangeNotifier {
   TutorialController({this.options = const TutorialOptions()}) {
+    _setBeltInventory(VehicleSeat.demoIds);
     if (options.enableClock) {
       _timer = Timer.periodic(const Duration(milliseconds: 100), (_) => tick());
     }
@@ -24,6 +24,12 @@ class TutorialController extends ChangeNotifier {
   bool appInBackground = false;
   bool parked = true;
   bool connected = true;
+  bool liveVehicleMode = false;
+  bool vehicleConfigured = false;
+  bool _gloveboxSensorAvailable = false;
+  bool get gloveboxSensorAvailable => liveVehicleMode
+      ? _gloveboxSensorAvailable
+      : options.gloveboxSensorAvailable;
   Duration elapsed = Duration.zero;
   Duration idleTime = Duration.zero;
   int hintsUsed = 0;
@@ -33,29 +39,61 @@ class TutorialController extends ChangeNotifier {
   bool heaterOn = false;
   bool gloveboxOpen = false;
   bool wiperOn = false;
-  bool _pedalPressed = false;
+  bool _waitingForLightsOff = false;
   final Map<CarSeat, bool> lights = {for (final s in CarSeat.values) s: false};
-  final Map<CarSeat, bool> belts = {for (final s in CarSeat.values) s: false};
+  final Map<CarSeat, bool?> _observedLights = {
+    for (final s in CarSeat.values) s: false,
+  };
+  final Map<CarSeat, double> _observedWindows = {
+    for (final s in CarSeat.values) s: 0,
+  };
   final Map<CarSeat, int> windowPositions = {
     for (final s in CarSeat.values) s: 0,
   };
+  List<VehicleSeat> beltSeats = [];
+  final Map<String, bool?> belts = {};
+  final Map<String, bool?> _observedBelts = {};
+  final Map<String, String> vehicleIssues = {};
+  final Map<String, Object?> vehicleCapabilities = {};
   final Map<TutorialStage, int> _hintLevels = {};
   final List<TutorialStage> visited = [];
   TutorialResult? result;
 
-  // Each gate is a vertical wire with a different inlet/outlet offset. Matching
-  // only the first gate isn't enough: the current must cross all four gates.
   static const circuitBaseIn = [0, 1, 0, -1];
   static const circuitDelta = [1, -1, -1, 1];
   static const initialOffsets = [0, -1, 1, 0];
   final List<int> circuitOffsets = [...initialOffsets];
   final Set<CarSeat> circuitTouched = {};
 
-  bool get paused => manualPause || appInBackground || !parked || !connected;
+  bool get hasSensorProblem =>
+      liveVehicleMode &&
+      vehicleIssues.keys.any(
+        (key) => switch (stage) {
+          TutorialStage.power => key == 'lights' || key.startsWith('light:'),
+          TutorialStage.glovebox => key.startsWith('heater'),
+          TutorialStage.windowRequest || TutorialStage.windowCircuit =>
+            key == 'windows' || key.startsWith('window:'),
+          TutorialStage.wipers => key == 'wiper',
+          TutorialStage.departure =>
+            key == 'belts' || key == 'seatInventory' || key.startsWith('belt:'),
+          _ => false,
+        },
+      );
+  bool get paused =>
+      manualPause ||
+      appInBackground ||
+      !parked ||
+      !connected ||
+      hasSensorProblem;
   bool get playing =>
       stage != TutorialStage.intro && stage != TutorialStage.result;
   bool get acceptsInput => playing && !paused && !dialogueActive;
-  bool get allBelts => belts.values.every((value) => value);
+  bool get allBelts =>
+      belts.isNotEmpty && belts.values.every((value) => value == true);
+  int get buckledCount => belts.values.where((value) => value == true).length;
+  bool lightIsOn(CarSeat seat) => _observedLights[seat] == true;
+  bool get readyToStart =>
+      !liveVehicleMode || (connected && parked && vehicleConfigured);
   List<DialogueLine> get dialogue => TutorialScript.dialogue[stage] ?? const [];
   DialogueLine? get currentLine =>
       dialogue.isEmpty ? null : dialogue[dialogueIndex];
@@ -84,8 +122,29 @@ class TutorialController extends ChangeNotifier {
     return count == 4 && row != 2 ? 3 : count;
   }
 
+  void enableVehicleMode() {
+    liveVehicleMode = true;
+    connected = false;
+    parked = false;
+    _observedBelts.clear();
+    _observedLights.updateAll((_, _) => null);
+    _setBeltInventory(const []);
+  }
+
+  void _setBeltInventory(Iterable<String> ids) {
+    final unique = ids.toSet().toList()..sort();
+    final previous = Map<String, bool?>.of(belts);
+    belts.clear();
+    beltSeats = unique.map(VehicleSeat.fromId).toList();
+    for (final id in unique) {
+      belts[id] = _observedBelts.containsKey(id)
+          ? _observedBelts[id]
+          : previous[id];
+    }
+  }
+
   void start() {
-    if (stage != TutorialStage.intro) return;
+    if (stage != TutorialStage.intro || !readyToStart) return;
     _clock.start();
     _enter(TutorialStage.blackout);
   }
@@ -98,9 +157,19 @@ class TutorialController extends ChangeNotifier {
     dialogueIndex = 0;
     dialogueActive = dialogue.isNotEmpty;
     dialogueRevision++;
+    if (next == TutorialStage.power && liveVehicleMode) {
+      _waitingForLightsOff = !_observedLights.values.every(
+        (value) => value == false,
+      );
+    }
     if (next == TutorialStage.windowCircuit) {
       for (final seat in CarSeat.values) {
-        windowPositions[seat] = 0;
+        if (!liveVehicleMode) _observedWindows[seat] = 0;
+        windowPositions[seat] = liveVehicleMode
+            ? (_observedWindows[seat]! / 10).floor() * 10
+            : 0;
+        circuitOffsets[seat.index] =
+            initialOffsets[seat.index] + windowPositions[seat]! ~/ 10;
       }
     }
     if (next == TutorialStage.result) {
@@ -129,12 +198,11 @@ class TutorialController extends ChangeNotifier {
     } else if (stage == TutorialStage.arrival) {
       _enter(TutorialStage.result);
     } else {
+      _evaluateContinuousState();
       notifyListeners();
     }
   }
 
-  /// Call with a fixed delta in tests; production uses a monotonic clock so
-  /// delayed callbacks and system clock adjustments cannot corrupt the score.
   void tick([Duration? delta]) {
     final now = _clock.elapsed;
     final change = delta ?? now - _lastClock;
@@ -146,16 +214,20 @@ class TutorialController extends ChangeNotifier {
   }
 
   void setManualPause(bool value) {
+    if (manualPause == value) return;
     manualPause = value;
     _lastClock = _clock.elapsed;
     dialogueRevision++;
+    _evaluateContinuousState();
     notifyListeners();
   }
 
   void setBackground(bool value) {
+    if (appInBackground == value) return;
     appInBackground = value;
     _lastClock = _clock.elapsed;
     dialogueRevision++;
+    _evaluateContinuousState();
     notifyListeners();
   }
 
@@ -167,107 +239,199 @@ class TutorialController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void receive(TutorialVehicleInput input) {
-    // Safety and connection signals always take priority, including dialogue.
-    if (input.kind == VehicleInputKind.parking ||
-        input.kind == VehicleInputKind.connection) {
-      if (input.kind == VehicleInputKind.parking) {
-        parked = input.value != 0;
-      } else {
-        connected = input.value != 0;
+  void _evaluateContinuousState() {
+    if (!acceptsInput) return;
+    if (liveVehicleMode &&
+        stage == TutorialStage.power &&
+        CarSeat.values.any(
+          (seat) => lights[seat] == true && _observedLights[seat] != true,
+        )) {
+      _resetPower();
+    }
+    if (liveVehicleMode && stage == TutorialStage.windowCircuit) {
+      for (final seat in CarSeat.values) {
+        if (stage != TutorialStage.windowCircuit) break;
+        _moveCircuit(seat, _observedWindows[seat]!.round());
       }
-      _pedalPressed = false;
-      _lastClock = _clock.elapsed;
-      dialogueRevision++;
+      if (stage == TutorialStage.windowCircuit && _circuitComplete) {
+        _enter(TutorialStage.wipers);
+      }
+    }
+    if (stage == TutorialStage.glovebox &&
+        heaterOn &&
+        (!gloveboxSensorAvailable || gloveboxOpen)) {
+      _enter(TutorialStage.windowRequest);
+    } else if (stage == TutorialStage.wipers && wiperOn) {
+      _enter(TutorialStage.departure);
+    } else if (stage == TutorialStage.departure && allBelts) {
+      _enter(TutorialStage.arrival);
+    }
+  }
+
+  void receive(TutorialVehicleInput input) {
+    if (input.kind == VehicleInputKind.configuration) {
+      vehicleCapabilities.addAll(input.data ?? {});
+      _gloveboxSensorAvailable = vehicleCapabilities['gloveboxOpen'] == true;
+      final inventory = <String>{
+        ...((vehicleCapabilities['beltSeats'] as List?) ?? []).cast<String>(),
+        ...((vehicleCapabilities['seatInventory'] as List?) ?? [])
+            .cast<String>(),
+      };
+      _setBeltInventory(inventory);
+      vehicleConfigured = true;
       notifyListeners();
       return;
     }
-    if (!acceptsInput) return;
-    idleTime = Duration.zero;
-    final on = input.value > 0;
+    if (input.kind == VehicleInputKind.issue) {
+      final wasPaused = paused;
+      final key = input.data?['feature'] as String? ?? 'vehicle';
+      final message = input.data?['message'] as String? ?? '';
+      if (message.isEmpty) {
+        vehicleIssues.remove(key);
+      } else {
+        vehicleIssues[key] = message;
+      }
+      if (key.startsWith('belt:') && message.isNotEmpty) {
+        belts[key.substring(5)] = null;
+      }
+      if (wasPaused != paused) dialogueRevision++;
+      _evaluateContinuousState();
+      notifyListeners();
+      return;
+    }
+    if (input.kind == VehicleInputKind.parking ||
+        input.kind == VehicleInputKind.connection) {
+      final value = input.known && input.value != 0;
+      final previous = input.kind == VehicleInputKind.parking
+          ? parked
+          : connected;
+      if (input.kind == VehicleInputKind.parking) {
+        parked = value;
+      } else {
+        connected = value;
+      }
+      if (value != previous) {
+        _lastClock = _clock.elapsed;
+        dialogueRevision++;
+        _evaluateContinuousState();
+        notifyListeners();
+      }
+      return;
+    }
+
+    final on = input.known && input.value > 0;
     final seat = input.seat;
+    final wasAccepting = acceptsInput;
+    if (!liveVehicleMode && !wasAccepting) return;
+    // Cache physical states even under narration, notes, P pause, or background.
+    // Returning to the story evaluates current conditions, never a stale belt.
     switch (input.kind) {
-      case VehicleInputKind.cabinLight:
-        if (stage != TutorialStage.power || seat == null) break;
-        if (!on || lights[seat] == true) break;
-        if (seat != CarSeat.values[powerCount]) {
-          powerCount = 0;
-          lights.updateAll((_, _) => false);
-          feedback = '선이 끊어졌어요. 트렁크 배터리에서 다시 따라가 볼까요?';
-        } else {
-          lights[seat] = true;
-          powerCount++;
-          feedback = '${seat.label} 연결!';
-          if (powerCount == 4) _enter(TutorialStage.glovebox);
-        }
       case VehicleInputKind.passengerHeater:
-        if (stage != TutorialStage.glovebox) break;
         heaterOn = on;
-        feedback = on
-            ? '따뜻한 바람에 얼음이 녹았어요. 글로브박스를 열어보세요.'
-            : '조수석이 다시 차가워지고 있어요.';
-        if (on && !options.gloveboxSensorAvailable) {
-          _enter(TutorialStage.windowRequest);
-        }
       case VehicleInputKind.glovebox:
-        if (stage != TutorialStage.glovebox || !on) break;
-        if (!heaterOn) {
-          feedback = '꽁꽁 얼어 열리지 않아요. 먼저 따뜻하게 만들어야 해요.';
-        } else {
-          gloveboxOpen = true;
-          _enter(TutorialStage.windowRequest);
-        }
-      case VehicleInputKind.window:
-        if (seat == null) break;
-        if (stage == TutorialStage.windowRequest) {
-          _enter(TutorialStage.windowCircuit);
-          break;
-        }
-        if (stage != TutorialStage.windowCircuit) break;
-        final newPosition = input.value.round();
-        if (newPosition < 0 || newPosition > 50) {
-          feedback = '창문은 0~50% 안에서 움직여 주세요.';
-          break;
-        }
-        final previous = windowPositions[seat]!;
-        // One circuit step for each 10% position change, ignoring sensor jitter.
-        final movement = ((newPosition - previous) / 10).truncate();
-        if (movement == 0) break;
-        windowPositions[seat] = previous + movement * 10;
-        final i = seat.index;
-        circuitOffsets[i] = initialOffsets[i] + windowPositions[seat]! ~/ 10;
-        circuitTouched.add(seat);
-        windowMoves += movement.abs();
-        feedback = connectedGates == 4
-            ? '모든 회로가 이어졌어요!'
-            : '전류가 $connectedGates/4 구간까지 흐르고 있어요.';
-        if (connectedGates == 4 && circuitTouched.length == 4) {
-          _enter(TutorialStage.wipers);
-        }
+        gloveboxOpen = on && (heaterOn || liveVehicleMode);
       case VehicleInputKind.wiper:
-        if (stage != TutorialStage.wipers) break;
         wiperOn = on;
-        if (on) _enter(TutorialStage.departure);
       case VehicleInputKind.seatbelt:
-        if (stage != TutorialStage.departure || seat == null) break;
-        belts[seat] = on;
-        feedback = allBelts
-            ? '모두 준비됐어요. 이제 대피소로 출발해요!'
-            : '${belts.values.where((b) => b).length}/4명 안전벨트 연결';
-      case VehicleInputKind.accelerator:
-        if (stage != TutorialStage.departure) break;
-        final rising = on && !_pedalPressed;
-        _pedalPressed = on;
-        if (rising && allBelts) {
-          _enter(TutorialStage.arrival);
-        } else if (rising) {
-          feedback = '아직 벨트를 매지 않은 친구가 있어요. 네 자리 모두 확인해 주세요.';
+        final id = input.areaId ?? (seat == null ? null : areaForSeat(seat));
+        if (id != null) {
+          _observedBelts[id] = input.known ? on : null;
+          if (belts.containsKey(id)) belts[id] = input.known ? on : null;
         }
-      case VehicleInputKind.parking || VehicleInputKind.connection:
+      default:
         break;
     }
+
+    if (input.kind == VehicleInputKind.cabinLight && seat != null) {
+      final previous = _observedLights[seat];
+      _observedLights[seat] = input.known ? on : null;
+      if (stage == TutorialStage.power &&
+          _waitingForLightsOff &&
+          _observedLights.values.every((value) => value == false)) {
+        _waitingForLightsOff = false;
+      }
+      if (wasAccepting &&
+          !input.initial &&
+          input.known &&
+          stage == TutorialStage.power) {
+        if (!on && lights[seat] == true) {
+          _resetPower();
+        } else if (on && previous == false && !_waitingForLightsOff) {
+          if (seat != CarSeat.values[powerCount]) {
+            _resetPower();
+          } else {
+            lights[seat] = true;
+            powerCount++;
+            feedback = '${seat.label} 연결!';
+            if (powerCount == 4) _enter(TutorialStage.glovebox);
+          }
+        }
+      }
+    } else if (input.kind == VehicleInputKind.window &&
+        seat != null &&
+        input.known) {
+      final previousPhysical = _observedWindows[seat]!;
+      _observedWindows[seat] = input.value.toDouble();
+      if (wasAccepting && !input.initial && input.value != previousPhysical) {
+        if (stage == TutorialStage.windowRequest) {
+          _enter(TutorialStage.windowCircuit);
+        } else if (stage == TutorialStage.windowCircuit) {
+          _moveCircuit(seat, input.value.round());
+        }
+      } else if (!liveVehicleMode &&
+          wasAccepting &&
+          stage == TutorialStage.windowRequest) {
+        // A preview button can be clicked at its end stop; real SDK positions cannot.
+        _enter(TutorialStage.windowCircuit);
+      }
+    } else if (wasAccepting &&
+        stage == TutorialStage.glovebox &&
+        input.kind == VehicleInputKind.glovebox &&
+        on &&
+        !heaterOn) {
+      feedback = '꽁꽁 얼어 열리지 않아요.';
+    }
+    if (wasAccepting && !input.initial) idleTime = Duration.zero;
+    _evaluateContinuousState();
     notifyListeners();
   }
+
+  void _resetPower() {
+    powerCount = 0;
+    lights.updateAll((_, _) => false);
+    feedback = '회로 연결이 끊어졌어요.';
+    if (liveVehicleMode) {
+      _waitingForLightsOff = !_observedLights.values.every(
+        (value) => value == false,
+      );
+    } else {
+      _observedLights.updateAll((_, _) => false);
+    }
+  }
+
+  void _moveCircuit(CarSeat seat, int next) {
+    if (next < 0 || next > 50) {
+      feedback = '창문은 0~50% 안에서 움직여 주세요.';
+      return;
+    }
+    final previous = windowPositions[seat]!;
+    final target = (next / 10).floor() * 10;
+    if (target == previous) return;
+    windowPositions[seat] = target;
+    circuitOffsets[seat.index] = initialOffsets[seat.index] + target ~/ 10;
+    circuitTouched.add(seat);
+    windowMoves += ((target - previous) ~/ 10).abs();
+    feedback = '전류가 $connectedGates/4 구간까지 흐르고 있어요.';
+    if (_circuitComplete) {
+      _enter(TutorialStage.wipers);
+    }
+  }
+
+  bool get _circuitComplete =>
+      connectedGates == 4 &&
+      (liveVehicleMode || circuitTouched.length == 4) &&
+      (!liveVehicleMode ||
+          _observedWindows.values.every((value) => value >= 0 && value <= 50));
 
   void moveWindow(CarSeat seat, int direction) {
     final next = (windowPositions[seat]! + direction * 10).clamp(0, 50);
@@ -275,9 +439,14 @@ class TutorialController extends ChangeNotifier {
   }
 
   void resetCircuit() {
-    if (!acceptsInput || stage != TutorialStage.windowCircuit) return;
+    if (liveVehicleMode ||
+        !acceptsInput ||
+        stage != TutorialStage.windowCircuit) {
+      return;
+    }
     for (final seat in CarSeat.values) {
       windowPositions[seat] = 0;
+      _observedWindows[seat] = 0;
     }
     circuitOffsets.setAll(0, initialOffsets);
     circuitTouched.clear();

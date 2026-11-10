@@ -36,6 +36,7 @@ void main() {
         theme: tutorialTheme(),
         home: TutorialScreen(
           controller: c,
+          previewOnly: true,
           narrationPlayer: voice ?? TestVoice(),
         ),
       ),
@@ -68,6 +69,7 @@ void main() {
       await setup(tester, c);
       await tap(tester, 'start-tutorial');
       await dialogue(tester, c);
+      expect(find.text('지금 할 일'), findsNothing);
       await tap(tester, 'light-driver');
       expect(c.powerCount, 0);
       for (final seat in CarSeat.values) {
@@ -90,12 +92,10 @@ void main() {
       await dialogue(tester, c);
       await tap(tester, 'wiper');
       await dialogue(tester, c);
-      await tap(tester, 'accelerator');
       expect(c.stage, TutorialStage.departure);
-      for (final seat in CarSeat.values) {
-        await tap(tester, 'belt-${seat.name}');
+      for (final seat in c.beltSeats) {
+        await tap(tester, 'belt-${seat.id}');
       }
-      await tap(tester, 'accelerator');
       await dialogue(tester, c);
       expect(find.text('우리 모두, 살아남았다.'), findsOneWidget);
       expect(find.text('사용한 힌트'), findsOneWidget);
@@ -134,6 +134,13 @@ void main() {
       await tester.tap(find.text('힌트 열기 · +1분'));
       await tester.pump(const Duration(milliseconds: 250));
       expect(c.hintsUsed, 1);
+      await tester.tap(find.text('해볼게요'));
+      await tester.pump(const Duration(milliseconds: 250));
+      await tap(tester, 'hint');
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.textContaining('힌트를 열면 사용 횟수가'), findsNothing);
+      expect(find.text('힌트 열기 · +1분'), findsNothing);
+      expect(c.hintsUsed, 2);
       await tester.tap(find.text('해볼게요'));
       await tester.pump(const Duration(milliseconds: 250));
       await tap(tester, 'pause');
@@ -181,10 +188,9 @@ void main() {
       await dialogue(tester, c);
       await tap(tester, 'wiper');
       await dialogue(tester, c);
-      for (final seat in CarSeat.values) {
-        await tap(tester, 'belt-${seat.name}');
+      for (final seat in c.beltSeats) {
+        await tap(tester, 'belt-${seat.id}');
       }
-      await tap(tester, 'accelerator');
       await dialogue(tester, c);
       expect(c.stage, TutorialStage.result);
       expect(tester.takeException(), isNull);

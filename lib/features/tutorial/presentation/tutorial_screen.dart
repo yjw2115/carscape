@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../domain/tutorial_controller.dart';
 import '../domain/tutorial_models.dart';
 import '../domain/tutorial_script.dart';
 import '../integration/narration_player.dart';
 import '../integration/tutorial_input_source.dart';
+import '../integration/pleos_tutorial_input_source.dart';
 import 'tutorial_artwork.dart';
 import 'tutorial_style.dart';
 
@@ -16,12 +18,14 @@ class TutorialScreen extends StatefulWidget {
     this.narrationPlayer,
     this.inputSource,
     this.onFinished,
+    this.previewOnly = false,
   });
 
   final TutorialController? controller;
   final NarrationPlayer? narrationPlayer;
   final TutorialInputSource? inputSource;
   final ValueChanged<TutorialResult>? onFinished;
+  final bool previewOnly;
 
   @override
   State<TutorialScreen> createState() => _TutorialScreenState();
@@ -33,6 +37,7 @@ class _TutorialScreenState extends State<TutorialScreen>
   late final NarrationPlayer _voice;
   late final AnimationController _animation;
   StreamSubscription<TutorialVehicleInput>? _subscription;
+  TutorialInputSource? _source;
   int _revision = -1;
   int _speechToken = 0;
   Timer? _readingTimer;
@@ -41,13 +46,20 @@ class _TutorialScreenState extends State<TutorialScreen>
   bool _voiceUnavailable = false;
   bool _notesOpen = false;
   bool _gloveboxSensor = true;
-  bool get _demo => widget.inputSource == null;
+  bool get _demo => _source == null;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     c = widget.controller ?? TutorialController();
+    _source =
+        widget.inputSource ??
+        (!widget.previewOnly &&
+                !kIsWeb &&
+                defaultTargetPlatform == TargetPlatform.android
+            ? PleosTutorialInputSource()
+            : null);
     _voice = widget.narrationPlayer ?? SystemNarrationPlayer();
     _animation = AnimationController(
       vsync: this,
@@ -55,24 +67,36 @@ class _TutorialScreenState extends State<TutorialScreen>
     )..repeat();
     c.addListener(_changed);
     if (!_demo) {
-      c.receive(const TutorialVehicleInput(VehicleInputKind.parking, 0));
-      c.receive(const TutorialVehicleInput(VehicleInputKind.connection, 0));
-      _subscription = widget.inputSource!.events.listen(
-        c.receive,
-        onError: (Object _) => c.receive(
-          const TutorialVehicleInput(VehicleInputKind.connection, 0),
-        ),
-        onDone: () => c.receive(
-          const TutorialVehicleInput(VehicleInputKind.connection, 0),
-        ),
-      );
+      c.enableVehicleMode();
+      _listenToVehicle();
     }
+  }
+
+  void _listenToVehicle() {
+    _subscription = _source!.events.listen(
+      (input) => c.receive(input),
+      onError: (Object error) {
+        c.receive(
+          TutorialVehicleInput(
+            VehicleInputKind.issue,
+            0,
+            data: {'feature': 'connection', 'message': '$error'},
+          ),
+        );
+        c.receive(const TutorialVehicleInput(VehicleInputKind.connection, 0));
+      },
+      onDone: () =>
+          c.receive(const TutorialVehicleInput(VehicleInputKind.connection, 0)),
+    );
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     c.setBackground(state != AppLifecycleState.resumed);
     if (state != AppLifecycleState.resumed) unawaited(_voice.stop());
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_source?.refresh() ?? Future.value());
+    }
   }
 
   void _changed() {
@@ -113,8 +137,13 @@ class _TutorialScreenState extends State<TutorialScreen>
     _readingCompleter = null;
   }
 
-  void _send(VehicleInputKind kind, num value, {CarSeat? seat}) =>
-      c.receive(TutorialVehicleInput(kind, value, seat: seat));
+  void _send(
+    VehicleInputKind kind,
+    num value, {
+    CarSeat? seat,
+    String? areaId,
+  }) =>
+      c.receive(TutorialVehicleInput(kind, value, seat: seat, areaId: areaId));
 
   void _restart() {
     _speechToken++;
@@ -125,13 +154,22 @@ class _TutorialScreenState extends State<TutorialScreen>
     c = TutorialController(
       options: TutorialOptions(gloveboxSensorAvailable: _gloveboxSensor),
     );
+    if (!_demo) {
+      c.enableVehicleMode();
+      unawaited(
+        (_subscription?.cancel() ?? Future.value()).then((_) {
+          if (mounted) _listenToVehicle();
+        }),
+      );
+    }
     c.addListener(_changed);
     _revision = -1;
     setState(() {});
   }
 
   void _start() {
-    if (widget.controller == null &&
+    if (_demo &&
+        widget.controller == null &&
         c.options.gloveboxSensorAvailable != _gloveboxSensor) {
       _restart();
     }
@@ -255,30 +293,35 @@ class _TutorialScreenState extends State<TutorialScreen>
     if (!c.canHint || !c.acceptsInput) return;
     final currentStage = c.stage;
     final hint = TutorialScript.hints[currentStage]![c.hintLevel];
-    c.setManualPause(true);
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('힌트 ${c.hintLevel + 1} / 3'),
-        content: const Text(
-          '힌트를 열면 사용 횟수가 1회 늘고, 최종 기록에 1분이 더해져요.\n나레이션 노트는 몇 번을 열어도 무료예요.',
-        ),
-        actionsAlignment: MainAxisAlignment.start,
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('힌트 열기 · +1분'),
-          ),
-          OutlinedButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('돌아가기'),
-          ),
-        ],
-      ),
-    );
-    if (!mounted) return;
-    c.setManualPause(false);
-    if (accepted != true || c.stage != currentStage) return;
+    var accepted = true;
+    if (c.hintsUsed == 0) {
+      c.setManualPause(true);
+      accepted =
+          await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Text('힌트 ${c.hintLevel + 1} / 3'),
+              content: const Text(
+                '힌트를 열면 사용 횟수가 1회 늘고, 최종 기록에 1분이 더해져요.\n나레이션 노트는 몇 번을 열어도 무료예요.',
+              ),
+              actionsAlignment: MainAxisAlignment.start,
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('힌트 열기 · +1분'),
+                ),
+                OutlinedButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('돌아가기'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!mounted) return;
+      c.setManualPause(false);
+    }
+    if (!accepted || c.stage != currentStage || !c.acceptsInput) return;
     c.useHint();
     if (c.stage != currentStage) return;
     c.setManualPause(true);
@@ -463,10 +506,32 @@ class _TutorialScreenState extends State<TutorialScreen>
                     const SizedBox(height: 16),
                     FilledButton.icon(
                       key: const Key('start-tutorial'),
-                      onPressed: _start,
+                      onPressed: c.readyToStart ? _start : null,
                       icon: const Icon(Icons.arrow_forward_rounded),
                       label: const Text('이야기 시작하기'),
                     ),
+                    if (!_demo) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        !c.connected
+                            ? '차량에 연결 중입니다.'
+                            : !c.parked
+                            ? 'P단 정차 상태를 확인해 주세요.'
+                            : '차량 연결됨 · 안전벨트 ${c.beltSeats.length}개 좌석 확인',
+                        style: const TextStyle(
+                          color: TutorialColors.ice,
+                          fontSize: 14,
+                        ),
+                      ),
+                      if (c.vehicleIssues.isNotEmpty)
+                        Text(
+                          c.vehicleIssues.values.first,
+                          style: const TextStyle(
+                            color: TutorialColors.warning,
+                            fontSize: 12,
+                          ),
+                        ),
+                    ],
                     const SizedBox(height: 12),
                     Text(
                       _demo
@@ -573,7 +638,9 @@ class _TutorialScreenState extends State<TutorialScreen>
             _header(narrow),
             const SizedBox(height: 16),
             Expanded(
-              child: narrow
+              child: !_demo
+                  ? artwork
+                  : narrow
                   ? ListView(
                       children: [
                         SizedBox(height: 260, child: artwork),
@@ -594,6 +661,37 @@ class _TutorialScreenState extends State<TutorialScreen>
                     ),
             ),
             const SizedBox(height: 14),
+            if (!_demo && c.feedback.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  c.feedback,
+                  style: const TextStyle(
+                    color: TutorialColors.warm,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            if (!_demo && c.vehicleIssues.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '차량 상태를 읽지 못했어요. 연결을 확인해 주세요.',
+                  style: const TextStyle(
+                    color: TutorialColors.warning,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            if (c.stage == TutorialStage.windowCircuit ||
+                c.stage == TutorialStage.windowRequest)
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '창문은 절반까지만 · 손과 머리 끼임에 주의하세요',
+                  style: TextStyle(color: TutorialColors.muted, fontSize: 12),
+                ),
+              ),
             Align(alignment: Alignment.centerLeft, child: _footer()),
           ],
         ),
@@ -645,33 +743,6 @@ class _TutorialScreenState extends State<TutorialScreen>
   Widget _taskPanel() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _panel(
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _eyebrow('지금 할 일'),
-            const SizedBox(height: 9),
-            Text(
-              _taskTitle,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _taskBody,
-              style: const TextStyle(
-                fontSize: 14,
-                color: TutorialColors.muted,
-                height: 1.6,
-              ),
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 14),
       if (_demo)
         _controls()
       else
@@ -834,40 +905,30 @@ class _TutorialScreenState extends State<TutorialScreen>
     TutorialStage.departure => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final seat in CarSeat.values)
+        for (final seat in c.beltSeats)
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: OutlinedButton.icon(
-              key: Key('belt-${seat.name}'),
+              key: Key('belt-${seat.id}'),
               onPressed: c.acceptsInput
                   ? () => _send(
                       VehicleInputKind.seatbelt,
-                      c.belts[seat]! ? 0 : 1,
-                      seat: seat,
+                      c.belts[seat.id] == true ? 0 : 1,
+                      areaId: seat.id,
                     )
                   : null,
               icon: Icon(
-                c.belts[seat]!
+                c.belts[seat.id] == true
                     ? Icons.check_circle_outline
                     : Icons.person_outline,
                 size: 19,
-                color: c.belts[seat]! ? TutorialColors.success : null,
+                color: c.belts[seat.id] == true ? TutorialColors.success : null,
               ),
-              label: Text('${seat.label} 벨트${c.belts[seat]! ? ' · 연결' : ''}'),
+              label: Text(
+                '${seat.label} 벨트${c.belts[seat.id] == true ? ' · 연결' : ''}',
+              ),
             ),
           ),
-        const SizedBox(height: 6),
-        FilledButton.icon(
-          key: const Key('accelerator'),
-          onPressed: c.acceptsInput
-              ? () {
-                  _send(VehicleInputKind.accelerator, 0);
-                  _send(VehicleInputKind.accelerator, 1);
-                }
-              : null,
-          icon: const Icon(Icons.arrow_forward_rounded),
-          label: const Text('악셀 밟기 · 출발'),
-        ),
       ],
     ),
     _ => const SizedBox.shrink(),
@@ -1062,6 +1123,8 @@ class _TutorialScreenState extends State<TutorialScreen>
                       ? 'P단에서 이야기를 이어가요'
                       : !c.connected
                       ? '차량 연결을 기다리고 있어요'
+                      : c.hasSensorProblem
+                      ? '차량 상태를 확인하고 있어요'
                       : '잠시 숨을 고르세요',
                   style: const TextStyle(
                     fontSize: 29,
@@ -1074,6 +1137,8 @@ class _TutorialScreenState extends State<TutorialScreen>
                       ? '정차 상태가 확인되면 다시 시작할 수 있어요.'
                       : !c.connected
                       ? '연결이 돌아오면 같은 퍼즐에서 계속해요.'
+                      : c.hasSensorProblem
+                      ? '장치의 현재 상태를 읽지 못해 이야기와 시간을 멈췄어요. 연결이 돌아오면 이어서 진행해요.'
                       : '퍼즐 진행과 시간은 멈춰 있어요. 준비되면 돌아오세요.',
                   style: const TextStyle(
                     color: TutorialColors.muted,
@@ -1081,7 +1146,7 @@ class _TutorialScreenState extends State<TutorialScreen>
                   ),
                 ),
                 const SizedBox(height: 26),
-                if (c.parked && c.connected)
+                if (c.parked && c.connected && !c.hasSensorProblem)
                   FilledButton.icon(
                     key: const Key('resume'),
                     onPressed: () => c.setManualPause(false),
@@ -1211,7 +1276,7 @@ class _TutorialScreenState extends State<TutorialScreen>
                       children: [
                         FilledButton.icon(
                           key: const Key('restart'),
-                          onPressed: _demo && widget.controller == null
+                          onPressed: widget.controller == null
                               ? _restart
                               : null,
                           icon: const Icon(Icons.replay_rounded),
@@ -1282,29 +1347,6 @@ class _TutorialScreenState extends State<TutorialScreen>
     ),
     child: Text(text, style: TextStyle(fontSize: 12, color: color)),
   );
-
-  String get _taskTitle => switch (c.stage) {
-    TutorialStage.power => '배터리에서 나온 선을 따라\n실내등을 차례로 켜세요.',
-    TutorialStage.glovebox => '얼어붙은 글로브박스에서\n수리도구를 꺼내세요.',
-    TutorialStage.windowRequest => '창문을 조금 열어\n바깥 공기를 들여보세요.',
-    TutorialStage.windowCircuit => '네 자리의 창문 버튼으로\n끊어진 회로를 이으세요.',
-    TutorialStage.wipers => '앞유리 너머의\n대피소를 찾아보세요.',
-    TutorialStage.departure => '안전벨트를 모두 연결하고\n대피소로 출발하세요.',
-    _ => '',
-  };
-  String get _taskBody => switch (c.stage) {
-    TutorialStage.power => '트렁크에서 시작하는 선이 단서예요.\n순서가 틀리면 처음부터 다시 연결해요.',
-    TutorialStage.glovebox => '잠긴 걸까요, 얼어 있는 걸까요?\n따뜻한 바람이 도움이 될지도 몰라요.',
-    TutorialStage.windowRequest => '어느 자리의 버튼이든 괜찮아요.\n올림이나 내림을 한 번 눌러보세요.',
-    TutorialStage.windowCircuit =>
-      '색마다 한 자리씩 맡아요. 올림·내림으로 선을 움직여 왼쪽 전원을 출구에 연결하세요.\n창문은 0~50%만 · 손 끼임에 주의하세요.',
-    TutorialStage.wipers => '눈이 시야를 가리고 있어요.\n와이퍼가 움직일 공간을 확인해 주세요.',
-    TutorialStage.departure =>
-      _demo
-          ? '네 자리 모두 확인하세요. 악셀은 화면 속 출발 연출이에요. 실제 차량은 움직이지 않아요.'
-          : '전 좌석 안전벨트를 확인해 주세요. 실제 차량은 P단을 유지하세요.',
-    _ => '',
-  };
 
   String _stageTitle(TutorialStage stage) => switch (stage) {
     TutorialStage.intro || TutorialStage.blackout => '눈보라 속 정전',

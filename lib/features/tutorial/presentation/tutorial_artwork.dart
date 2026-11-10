@@ -50,7 +50,8 @@ class TutorialArtwork extends StatelessWidget {
         ),
         child: CustomPaint(
           painter: switch (c.stage) {
-            TutorialStage.power || TutorialStage.departure => _CarPainter(c),
+            TutorialStage.power => _CarPainter(c),
+            TutorialStage.departure => _BeltsPainter(c),
             TutorialStage.glovebox => _GloveboxPainter(c.heaterOn, time),
             TutorialStage.windowCircuit => _CircuitPainter(c),
             _ => _SnowPainter(
@@ -198,7 +199,7 @@ class _CarPainter extends CustomPainter {
     for (final seat in CarSeat.values) {
       final p = positions[seat.index];
       final connected = c.stage == TutorialStage.departure
-          ? c.belts[seat]!
+          ? c.belts[areaForSeat(seat)] == true
           : c.lights[seat]!;
       final color = c.stage == TutorialStage.departure
           ? TutorialColors.success
@@ -306,6 +307,107 @@ class _CarPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CarPainter oldDelegate) => true;
+}
+
+class _BeltsPainter extends CustomPainter {
+  _BeltsPainter(this.c);
+  final TutorialController c;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = math.min(size.width / 490, size.height / 400);
+    canvas.save();
+    canvas.translate(
+      (size.width - 490 * scale) / 2,
+      (size.height - 400 * scale) / 2,
+    );
+    canvas.scale(scale);
+    final frame = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(85, 22, 320, 340),
+      const Radius.circular(42),
+    );
+    canvas.drawRRect(frame, Paint()..color = const Color(0xFF102436));
+    canvas.drawRRect(
+      frame,
+      Paint()
+        ..color = TutorialColors.ice.withValues(alpha: .45)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+    _label(
+      canvas,
+      '차량 앞쪽 ↑',
+      const Offset(245, 42),
+      color: TutorialColors.ice,
+      size: 12,
+    );
+    if (c.beltSeats.isEmpty) {
+      _label(canvas, '좌석 상태 확인 중', const Offset(245, 200));
+    }
+    final rows = c.beltSeats.map((s) => s.row).toSet().toList()..sort();
+    for (final seat in c.beltSeats) {
+      final row = rows.indexOf(seat.row);
+      final x = 150.0 + seat.column * 95;
+      final y = rows.length <= 2 ? 120.0 + row * 130 : 103.0 + row * 90;
+      final value = c.belts[seat.id];
+      final color = value == true
+          ? TutorialColors.success
+          : value == false
+          ? TutorialColors.warning
+          : TutorialColors.muted;
+      final box = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(x, y), width: 63, height: 61),
+        const Radius.circular(13),
+      );
+      canvas.drawRRect(box, Paint()..color = color.withValues(alpha: .08));
+      canvas.drawRRect(
+        box,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+      canvas.drawCircle(Offset(x, y - 12), 7, Paint()..color = color);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x - 12, y - 2, 24, 23),
+          const Radius.circular(6),
+        ),
+        Paint()..color = color.withValues(alpha: .4),
+      );
+      if (value == true) {
+        canvas.drawLine(
+          Offset(x - 18, y - 12),
+          Offset(x + 18, y + 24),
+          Paint()
+            ..color = color
+            ..strokeWidth = 3,
+        );
+      }
+      _label(canvas, seat.label, Offset(x, y + 43), color: color, size: 11);
+      _label(
+        canvas,
+        value == true
+            ? '연결됨'
+            : value == false
+            ? '미연결'
+            : '감지 대기',
+        Offset(x, y + 60),
+        color: color,
+        size: 10,
+      );
+    }
+    _label(
+      canvas,
+      '${c.buckledCount} / ${c.beltSeats.length} 좌석 연결',
+      const Offset(245, 381),
+      color: TutorialColors.success,
+      size: 16,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _BeltsPainter oldDelegate) => true;
 }
 
 class _GloveboxPainter extends CustomPainter {
