@@ -3,10 +3,8 @@ enum TutorialStage {
   blackout,
   power,
   glovebox,
-  windowRequest,
-  windowCircuit,
-  wipers,
-  departure,
+  ventilation,
+  escape,
   arrival,
   result,
 }
@@ -14,8 +12,8 @@ enum TutorialStage {
 enum CarSeat {
   rearLeft('뒷좌석 왼쪽', '뒤 왼쪽'),
   rearRight('뒷좌석 오른쪽', '뒤 오른쪽'),
-  passenger('조수석', '조수석'),
-  driver('운전석', '운전석');
+  driver('운전석', '운전석'),
+  passenger('조수석', '조수석');
 
   const CarSeat(this.label, this.shortLabel);
   final String label;
@@ -23,24 +21,50 @@ enum CarSeat {
 }
 
 enum VehicleInputKind {
+  configuration,
+  issue,
   cabinLight,
   passengerHeater,
   glovebox,
   window,
+  door,
   wiper,
-  seatbelt,
-  accelerator,
+  steering,
   parking,
   connection,
 }
 
-/// Logical tutorial inputs, independent of any shared vehicle SDK device IDs.
-/// An external adapter must normalize window position to 0..100 percent open.
+/// Window values are percent open; steering is degrees (right positive).
 class TutorialVehicleInput {
-  const TutorialVehicleInput(this.kind, this.value, {this.seat});
+  const TutorialVehicleInput(
+    this.kind,
+    this.value, {
+    this.seat,
+    this.areaId,
+    this.initial = false,
+    this.known = true,
+    this.data,
+  });
   final VehicleInputKind kind;
   final num value;
   final CarSeat? seat;
+  final String? areaId;
+  final bool initial;
+  final bool known;
+  final Map<String, Object?>? data;
+}
+
+String areaForSeat(CarSeat seat) => switch (seat) {
+  CarSeat.rearLeft => 'ROW_2_LEFT',
+  CarSeat.rearRight => 'ROW_2_RIGHT',
+  CarSeat.driver => 'ROW_1_LEFT',
+  CarSeat.passenger => 'ROW_1_RIGHT',
+};
+CarSeat? seatForArea(String? id) {
+  for (final seat in CarSeat.values) {
+    if (areaForSeat(seat) == id) return seat;
+  }
+  return null;
 }
 
 class DialogueLine {
@@ -54,8 +78,6 @@ class TutorialOptions {
     this.gloveboxSensorAvailable = true,
     this.enableClock = true,
   });
-
-  /// False: passenger heater alone completes the glovebox chapter.
   final bool gloveboxSensorAvailable;
   final bool enableClock;
 }
@@ -65,9 +87,11 @@ class TutorialResult {
     required this.playTime,
     required this.hintsUsed,
     required this.windowMoves,
+    this.usedTestNavigation = false,
   });
   final Duration playTime;
   final int hintsUsed;
   final int windowMoves;
+  final bool usedTestNavigation;
   Duration get recordedTime => playTime + Duration(minutes: hintsUsed);
 }

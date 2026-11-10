@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:carscape/features/tutorial/integration/tutorial_input_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:carscape/features/tutorial/domain/tutorial_controller.dart';
 import 'package:carscape/features/tutorial/domain/tutorial_models.dart';
@@ -20,6 +22,29 @@ class TestVoice implements NarrationPlayer {
   Future<void> dispose() async {}
 }
 
+class PendingLightSource implements TutorialInputSource {
+  final stream = StreamController<TutorialVehicleInput>.broadcast();
+  final scopes = <bool>[];
+  Completer<void>? reset;
+  @override
+  Stream<TutorialVehicleInput> get events => stream.stream;
+  @override
+  Future<void> refresh() async {}
+  @override
+  Future<void> setLightPuzzleActive(bool active) async {
+    scopes.add(active);
+    if (!active && reset != null && !reset!.isCompleted) {
+      reset!.completeError(StateError('cancelled'));
+    }
+  }
+
+  @override
+  Future<void> resetReadingLights() {
+    reset = Completer<void>();
+    return reset!.future;
+  }
+}
+
 void main() {
   Future<void> setup(
     WidgetTester tester,
@@ -36,6 +61,7 @@ void main() {
         theme: tutorialTheme(),
         home: TutorialScreen(
           controller: c,
+          previewOnly: true,
           narrationPlayer: voice ?? TestVoice(),
         ),
       ),
@@ -59,7 +85,7 @@ void main() {
   }
 
   testWidgets(
-    'player can complete all five puzzles using only visible controls',
+    'player can complete all four chapters using only visible controls',
     (tester) async {
       final c = TutorialController(
         options: const TutorialOptions(enableClock: false),
@@ -68,6 +94,7 @@ void main() {
       await setup(tester, c);
       await tap(tester, 'start-tutorial');
       await dialogue(tester, c);
+      expect(find.text('지금 할 일'), findsNothing);
       await tap(tester, 'light-driver');
       expect(c.powerCount, 0);
       for (final seat in CarSeat.values) {
@@ -79,23 +106,18 @@ void main() {
       await tap(tester, 'heater');
       await tap(tester, 'glovebox');
       await dialogue(tester, c);
-      await tap(tester, 'window-driver-up');
-      await dialogue(tester, c);
-      const moves = [2, 3, 1, 2];
       for (final seat in CarSeat.values) {
-        for (int i = 0; i < moves[seat.index]; i++) {
-          await tap(tester, 'window-${seat.name}-down');
-        }
+        await tap(tester, 'window-${seat.name}-down');
       }
+      for (int i = 0; i < 60; i++) {
+        c.tick(const Duration(milliseconds: 100));
+      }
+      await tester.pump();
       await dialogue(tester, c);
       await tap(tester, 'wiper');
-      await dialogue(tester, c);
-      await tap(tester, 'accelerator');
-      expect(c.stage, TutorialStage.departure);
-      for (final seat in CarSeat.values) {
-        await tap(tester, 'belt-${seat.name}');
-      }
-      await tap(tester, 'accelerator');
+      c.tick(const Duration(seconds: 3));
+      await tester.pump();
+      await tap(tester, 'steering-45');
       await dialogue(tester, c);
       expect(find.text('우리 모두, 살아남았다.'), findsOneWidget);
       expect(find.text('사용한 힌트'), findsOneWidget);
@@ -136,6 +158,13 @@ void main() {
       expect(c.hintsUsed, 1);
       await tester.tap(find.text('해볼게요'));
       await tester.pump(const Duration(milliseconds: 250));
+      await tap(tester, 'hint');
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.textContaining('힌트를 열면 사용 횟수가'), findsNothing);
+      expect(find.text('힌트 열기 · +1분'), findsNothing);
+      expect(c.hintsUsed, 2);
+      await tester.tap(find.text('해볼게요'));
+      await tester.pump(const Duration(milliseconds: 250));
       await tap(tester, 'pause');
       expect(c.paused, isTrue);
       await tap(tester, 'resume');
@@ -169,26 +198,130 @@ void main() {
       await tap(tester, 'heater');
       await tap(tester, 'glovebox');
       await dialogue(tester, c);
-      await tap(tester, 'window-driver-down');
+      for (final seat in CarSeat.values) {
+        await tap(tester, 'window-${seat.name}-down');
+      }
+      for (int i = 0; i < 60; i++) {
+        c.tick(const Duration(milliseconds: 100));
+      }
+      await tester.pump();
       await dialogue(tester, c);
       expect(tester.takeException(), isNull);
-      const moves = [2, 3, 1, 2];
-      for (final seat in CarSeat.values) {
-        for (int i = 0; i < moves[seat.index]; i++) {
-          await tap(tester, 'window-${seat.name}-down');
-        }
-      }
-      await dialogue(tester, c);
       await tap(tester, 'wiper');
-      await dialogue(tester, c);
-      for (final seat in CarSeat.values) {
-        await tap(tester, 'belt-${seat.name}');
-      }
-      await tap(tester, 'accelerator');
+      c.tick(const Duration(seconds: 3));
+      await tester.pump();
+      await tap(tester, 'steering-45');
       await dialogue(tester, c);
       expect(c.stage, TutorialStage.result);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     });
   }
+  testWidgets(
+    'temporary navigation stays usable during dialogue and first resets to intro',
+    (tester) async {
+      final c = TutorialController(
+        options: const TutorialOptions(enableClock: false),
+      );
+      addTearDown(c.dispose);
+      await setup(tester, c);
+      await tap(tester, 'test-next');
+      expect(c.stage, TutorialStage.power);
+      await tap(tester, 'test-next');
+      expect(c.dialogueActive, isTrue);
+      await tap(tester, 'test-next');
+      expect(c.stage, TutorialStage.ventilation);
+      await tap(tester, 'test-previous');
+      expect(c.stage, TutorialStage.glovebox);
+      await tap(tester, 'test-first');
+      expect(find.byKey(const Key('start-tutorial')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets('cold reaction plays once without a dialog or input pause', (
+    tester,
+  ) async {
+    final c = TutorialController(
+      options: const TutorialOptions(enableClock: false),
+    );
+    final voice = TestVoice();
+    addTearDown(c.dispose);
+    await setup(tester, c, voice: voice);
+    for (int i = 0; i < 3; i++) {
+      c.testNavigate(1);
+    }
+    await tester.pump();
+    await dialogue(tester, c);
+    c.receive(
+      const TutorialVehicleInput(
+        VehicleInputKind.window,
+        100,
+        seat: CarSeat.driver,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byKey(const Key('cold-caption')), findsOneWidget);
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(c.acceptsInput, isTrue);
+    expect(voice.spoken.where((text) => text == '추워서 손이 안 움직여...').length, 1);
+    c.receive(
+      const TutorialVehicleInput(
+        VehicleInputKind.window,
+        0,
+        seat: CarSeat.driver,
+      ),
+    );
+    c.receive(
+      const TutorialVehicleInput(
+        VehicleInputKind.window,
+        100,
+        seat: CarSeat.driver,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(voice.spoken.where((text) => text == '추워서 손이 안 움직여...').length, 1);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets(
+    'leaving the light chapter cancels a pending physical reset immediately',
+    (tester) async {
+      final c = TutorialController(
+        options: const TutorialOptions(enableClock: false),
+      );
+      final source = PendingLightSource();
+      addTearDown(c.dispose);
+      addTearDown(source.stream.close);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: tutorialTheme(),
+          home: TutorialScreen(
+            controller: c,
+            inputSource: source,
+            narrationPlayer: TestVoice(),
+          ),
+        ),
+      );
+      c.receive(
+        const TutorialVehicleInput(VehicleInputKind.configuration, 0, data: {}),
+      );
+      c.receive(const TutorialVehicleInput(VehicleInputKind.connection, 1));
+      c.receive(const TutorialVehicleInput(VehicleInputKind.parking, 1));
+      await tester.pump();
+      await tap(tester, 'test-next');
+      await tester.pump();
+      expect(c.stage, TutorialStage.power);
+      expect(source.reset, isNotNull);
+      expect(source.reset!.isCompleted, isFalse);
+      await tap(tester, 'test-next');
+      await tester.pump();
+      expect(c.stage, TutorialStage.glovebox);
+      expect(source.scopes.last, isFalse);
+      expect(source.reset!.isCompleted, isTrue);
+      expect(c.vehicleIssues.containsKey('lightReset'), isFalse);
+      await tester.pumpWidget(const SizedBox());
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
