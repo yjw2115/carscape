@@ -9,6 +9,7 @@ class HomeRail extends StatelessWidget {
     required this.palette,
     required this.onTutorial,
     required this.onRecords,
+    required this.onBadges,
     required this.onSettings,
     required this.onVehicleCheck,
     required this.onPrevious,
@@ -19,6 +20,7 @@ class HomeRail extends StatelessWidget {
   final HomePalette palette;
   final VoidCallback onTutorial;
   final VoidCallback onRecords;
+  final VoidCallback onBadges;
   final VoidCallback onSettings;
   final VoidCallback onVehicleCheck;
   final VoidCallback onPrevious;
@@ -59,6 +61,14 @@ class HomeRail extends StatelessWidget {
             icon: Icons.emoji_events_outlined,
             label: '기록·순위',
             onTap: onRecords,
+          ),
+          SizedBox(height: 16 * s),
+          _MenuButton(
+            s: s,
+            palette: p,
+            icon: Icons.military_tech_outlined,
+            label: '배지',
+            onTap: onBadges,
           ),
           SizedBox(height: 16 * s),
           Row(

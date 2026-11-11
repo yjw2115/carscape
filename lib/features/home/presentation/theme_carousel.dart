@@ -25,6 +25,7 @@ class ThemeCarousel extends StatelessWidget {
     required this.onDragStart,
     required this.onDragUpdate,
     required this.onDragEnd,
+    this.lockedReason,
   });
 
   final Animation<double> position;
@@ -38,6 +39,9 @@ class ThemeCarousel extends StatelessWidget {
   final VoidCallback onDragStart;
   final ValueChanged<double> onDragUpdate;
   final ValueChanged<double> onDragEnd;
+
+  /// Why a theme can't be played yet, or null when it can.
+  final String? Function(EscapeTheme theme)? lockedReason;
 
   static const cardWidth = 560.0;
   static const gap = 28.0;
@@ -103,6 +107,7 @@ class ThemeCarousel extends StatelessWidget {
       emphasis: (1 - r.abs()).clamp(0.0, 1.0),
       parking: parking,
       onStart: () => onStart(theme),
+      locked: lockedReason?.call(theme),
     );
     return Positioned(
       key: ValueKey(page),
