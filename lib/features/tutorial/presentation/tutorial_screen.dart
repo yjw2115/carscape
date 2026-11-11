@@ -641,7 +641,7 @@ class _TutorialScreenState extends State<TutorialScreen>
                     Text(
                       _demo
                           ? '체험 모드 · 실제 차량은 제어하지 않아요.\n이야기는 허구이며 실제 차량 고장 시 대처법이 아니에요.'
-                          : 'P단 정차 상태에서 플레이하세요. 첫 단계는 독서등을 자동으로 초기화해요.',
+                          : 'P단 정차 상태에서 플레이하세요. 시작할 때 차량 상태가 바뀔 수 있어요.',
                       style: const TextStyle(
                         color: TutorialColors.muted,
                         fontSize: 12,
@@ -801,7 +801,7 @@ class _TutorialScreenState extends State<TutorialScreen>
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '손과 머리 끼임에 주의하세요 · 문과 트렁크 주변을 확인하세요',
+                  '차량 장치를 조작할 때 손과 머리 끼임에 주의하세요.',
                   style: TextStyle(color: TutorialColors.muted, fontSize: 12),
                 ),
               ),
@@ -1504,7 +1504,7 @@ class _TutorialScreenState extends State<TutorialScreen>
 
   String _stageTitle(TutorialStage stage) => switch (stage) {
     TutorialStage.intro || TutorialStage.blackout => '눈보라 속 정전',
-    TutorialStage.power => '작은 불빛을 따라서',
+    TutorialStage.power => '한밤의 정적',
     TutorialStage.glovebox => '얼어붙은 글로브박스',
     TutorialStage.ventilation => '차가운 공기, 새어 나오는 가스',
     TutorialStage.escape => '눈 너머의 불빛',

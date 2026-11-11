@@ -46,7 +46,7 @@ class _Blueprint extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Semantics(
     image: true,
-    label: '차량 독서등 전원 회로. ${controller.powerCount}곳 연결됨.',
+    label: '좌석 사이를 지나는 선이 그려진 차량 설계도',
     child: LayoutBuilder(
       builder: (context, constraints) {
         final size = constraints.biggest;
@@ -184,17 +184,9 @@ class _CircuitOverlay extends CustomPainter {
       _text(
         canvas,
         CarSeat.values[i].shortLabel,
-        Offset(x, p.dy - 10),
+        Offset(x, p.dy),
         color: _ink,
         fontSize: labelSize,
-        right: labelsBesideDrawing ? left : !left,
-      );
-      _text(
-        canvas,
-        i < connected ? '켜짐' : '꺼짐',
-        Offset(x, p.dy + 9),
-        color: i < connected ? _copper : const Color(0xFF595649),
-        fontSize: small ? 10 : 11,
         right: labelsBesideDrawing ? left : !left,
       );
     }
@@ -241,33 +233,12 @@ class _CircuitOverlay extends CustomPainter {
       }
     }
 
-    final nodeRadius = (drawing.height * .025).clamp(7.0, 14.0);
-    for (var i = 0; i < positions.length; i++) {
-      final center = positions[i];
-      final active = i < connected;
-      canvas.drawCircle(
-        center,
-        nodeRadius + 2,
-        Paint()..color = const Color(0xFFEFE4CC),
-      );
-      canvas.drawCircle(
-        center,
-        nodeRadius,
-        Paint()..color = active ? _copper : _ink,
-      );
-      _symbol(
-        canvas,
-        Icons.lightbulb_outline,
-        center,
-        nodeRadius * 1.65,
-        active ? const Color(0xFFFFE1A2) : const Color(0xFFF9EFDC),
-      );
-    }
+    final batteryScale = (drawing.height * .025).clamp(7.0, 14.0);
     final batteryBody = RRect.fromRectAndRadius(
       Rect.fromCenter(
         center: battery,
-        width: nodeRadius * 3.3,
-        height: nodeRadius * 1.7,
+        width: batteryScale * 3.3,
+        height: batteryScale * 1.7,
       ),
       const Radius.circular(3),
     );
@@ -277,25 +248,9 @@ class _CircuitOverlay extends CustomPainter {
       '+   −',
       battery,
       color: const Color(0xFFF7EBD5),
-      fontSize: nodeRadius,
+      fontSize: batteryScale,
       center: true,
     );
-    if (size.width >= 440) {
-      _text(
-        canvas,
-        '독서등 전원 회로',
-        Offset(leftLabel, 29),
-        color: _ink,
-        fontSize: 16,
-      );
-      _text(
-        canvas,
-        '연결 ${connected.toString()}/4',
-        Offset(leftLabel, 49),
-        color: const Color(0xFF585442),
-        fontSize: 12,
-      );
-    }
   }
 
   void _text(
@@ -331,28 +286,6 @@ class _CircuitOverlay extends CustomPainter {
             painter.height / 2,
           ),
     );
-    painter.dispose();
-  }
-
-  void _symbol(
-    Canvas canvas,
-    IconData icon,
-    Offset at,
-    double size,
-    Color color,
-  ) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: String.fromCharCode(icon.codePoint),
-        style: TextStyle(
-          fontFamily: icon.fontFamily,
-          fontSize: size,
-          color: color,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    painter.paint(canvas, at - Offset(painter.width / 2, painter.height / 2));
     painter.dispose();
   }
 

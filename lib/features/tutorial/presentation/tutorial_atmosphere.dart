@@ -3,12 +3,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../domain/tutorial_controller.dart';
-import '../domain/tutorial_models.dart';
 import 'tutorial_style.dart';
 
 const frozenNightCabin = 'assets/frozen_night/art/cabin.jpg';
 const frozenNightRoad = 'assets/frozen_night/art/road.jpg';
 const _frostAsset = 'assets/frozen_night/art/frost.jpg';
+const _snowAsset = 'assets/frozen_night/art/windshield_snow.jpg';
 
 class VentilationDashboard extends StatelessWidget {
   const VentilationDashboard({super.key, required this.controller});
@@ -62,34 +62,27 @@ class VentilationDashboard extends StatelessWidget {
           final padding = compact ? 12.0 : 24.0;
           return Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1020, maxHeight: 440),
+              constraints: const BoxConstraints(maxWidth: 1020, maxHeight: 390),
               child: Padding(
                 padding: EdgeInsets.all(padding),
-                child: Column(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 6,
-                            child: _GasInstrument(
-                              level: controller.gasLevel,
-                              compact: compact,
-                            ),
-                          ),
-                          SizedBox(width: compact ? 10 : 18),
-                          Expanded(
-                            flex: 5,
-                            child: _TemperatureInstrument(
-                              temperature: controller.cabinTemperature,
-                              compact: compact,
-                            ),
-                          ),
-                        ],
+                      flex: 6,
+                      child: _GasInstrument(
+                        level: controller.gasLevel,
+                        compact: compact,
                       ),
                     ),
-                    const SizedBox(height: 9),
-                    _Openings(controller: controller, compact: compact),
+                    SizedBox(width: compact ? 10 : 18),
+                    Expanded(
+                      flex: 5,
+                      child: _TemperatureInstrument(
+                        temperature: controller.cabinTemperature,
+                        compact: compact,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -406,85 +399,6 @@ class _Thermometer extends CustomPainter {
       oldDelegate.temperature != temperature || oldDelegate.tint != tint;
 }
 
-class _Openings extends StatelessWidget {
-  const _Openings({required this.controller, required this.compact});
-  final TutorialController controller;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final opened = controller.doors.entries
-        .where((entry) => entry.value == true)
-        .toList();
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xEA12232E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF445D6E)),
-      ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 6, vertical: compact ? 5 : 9),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                for (final seat in [
-                  CarSeat.driver,
-                  CarSeat.passenger,
-                  CarSeat.rearLeft,
-                  CarSeat.rearRight,
-                ])
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Text(
-                          seat.shortLabel,
-                          maxLines: 1,
-                          style: const TextStyle(
-                            color: TutorialColors.muted,
-                            fontSize: 11,
-                          ),
-                        ),
-                        Text(
-                          controller.windows[seat] == null
-                              ? '—'
-                              : '${controller.windows[seat]!.round()}%',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: compact ? 14 : 17,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-            if (opened.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 3),
-                child: Text(
-                  opened
-                      .map(
-                        (entry) => entry.key == 'REAR'
-                            ? '트렁크 열림'
-                            : '${seatForArea(entry.key)?.shortLabel ?? '차량'} 문 열림',
-                      )
-                      .join(' · '),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFFFFCA75),
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class EscapeView extends StatelessWidget {
   const EscapeView({super.key, required this.controller});
 
@@ -494,7 +408,7 @@ class EscapeView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       image: true,
-      label: controller.shelterVisible ? '오른쪽으로 이어지는 눈길과 대피소' : '눈과 성에가 덮인 앞유리',
+      label: controller.shelterVisible ? '오른쪽으로 이어지는 눈길과 대피소' : '눈이 쌓인 앞유리',
       child: TweenAnimationBuilder<double>(
         tween: Tween<double>(begin: 0, end: controller.visibility),
         duration: const Duration(milliseconds: 110),
@@ -515,11 +429,11 @@ class EscapeView extends StatelessWidget {
                 child: Opacity(
                   opacity: 1 - ((progress - .52) / .48).clamp(0.0, 1.0),
                   child: Image.asset(
-                    _frostAsset,
+                    _snowAsset,
                     fit: BoxFit.cover,
                     excludeFromSemantics: true,
                     frameBuilder: (context, child, frame, _) => frame == null
-                        ? const ColoredBox(color: Color(0xFFAEC4D1))
+                        ? const ColoredBox(color: Color(0xFFC5CBD1))
                         : child,
                   ),
                 ),

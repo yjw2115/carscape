@@ -20,6 +20,12 @@ Use case: stylized-concept. Photoreal high-end survival videogame environment pl
 
 Use case: photorealistic-natural. Wide 16:9 windshield frost texture for a winter videogame, an almost opaque frosted-up flat glass surface filling the entire picture edge to edge. Macro photographic fine fern-shaped ice dendrites, clear clustered crystals, opaque snow and densely textured bluish white freezing fog. Subtle dark steel-blue patches in the middle and thick packed granular snow along bottom, irregular icy crust and small ice granules on glass. Entire camera field is the frosted glass, no visible scenery, no people, no frame or windows divisions, no logo, no text, no black framing. Natural icy translucency and realistic microdetail, cold desaturated teal blue and gray-white colors. No discrete snowflake icons and no illustration.
 
+### `windshield_snow.jpg`
+
+OpenAI 이미지 생성 도구로 제작했습니다. 첨부 사진은 앞유리 위 눈 입자의 질감을 참고하는 데 사용했습니다.
+
+Create a new wide 16:9 production game texture for Carscape, photographed from inside a car through its windshield, almost entirely blocked by fresh accumulated SNOW on the exterior glass. Use the supplied final reference photo in the request only as visual inspiration for the granular powder (do not recreate its exterior angle, black car frame or wipers). Fill the canvas completely with snowy buildup: matte white and pale neutral blue-gray loose fine snow grains, fluffy clumpy small wind-packed drifts softly banked along the bottom, subtly uneven density with mottled dark graphite-blue patches in the upper/middle field that remain opaque with snow particles. Photorealistic tactile snow, cool evening light, distinguish clearly from the crystal frost in preceding scene. Absolutely no fern-shaped ice crystals, crystal branches, frost flowers, frozen sheets, icicles, icelike blue shards, glass cracks, wiper tracks, wipers, borders, cabin, scenery, outlines, text or logos. No holes or transparent regions. Top to bottom snow covering the full width. We composite over the existing road and wipe this full-bleed texture in code.
+
 ## 한국어 대사
 
-`voice/`의 WAV 9개는 기존 스테이지 대사로 [Supertonic 3](https://huggingface.co/Supertone/supertonic-3)의 한국어 음성을 로컬에서 합성한 결과입니다. 기본 음색은 운전석 M1, 조수석 F3, 나레이터 M4입니다. 원본 대사는 `lib/features/tutorial/domain/tutorial_script.dart`에 있습니다. [모델 이용 조건](https://huggingface.co/Supertone/supertonic-3/blob/main/LICENSE)
+`voice/`의 WAV 9개는 [Supertonic 3](https://huggingface.co/Supertone/supertonic-3)으로 로컬에서 합성했습니다. 운전석은 M1, 조수석은 F3, 나레이터는 M4 음색입니다. 구절마다 말의 속도, 음높이, 세기와 쉼을 조절했습니다. 정전 장면의 다급한 질문, 가스 발견 순간의 놀람, 도착 후의 안도가 서로 다르게 들리도록 편집했습니다. 원본 대사는 `lib/features/tutorial/domain/tutorial_script.dart`에 있습니다. [모델 이용 조건](https://huggingface.co/Supertone/supertonic-3/blob/main/LICENSE)
