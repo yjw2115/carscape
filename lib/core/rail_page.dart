@@ -193,6 +193,11 @@ class RailAction extends StatelessWidget {
   }
 }
 
+/// Korean text wraps between any two letters. Gluing each word's letters
+/// with a word joiner (U+2060) makes lines break only at spaces.
+String keepWords(String text) =>
+    text.split(' ').map((w) => w.split('').join('⁠')).join(' ');
+
 /// Rounded content card in the home's card colors.
 class RailCard extends StatelessWidget {
   const RailCard({

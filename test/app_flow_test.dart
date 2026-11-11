@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:carscape/app.dart';
 import 'package:carscape/core/game_session.dart';
+import 'package:carscape/core/rail_page.dart';
 import 'package:carscape/features/badges/progress.dart';
 import 'package:carscape/features/home/domain/escape_theme.dart';
 import 'package:carscape/features/records/record_store.dart';
@@ -292,6 +293,6 @@ void main() {
       find.text('모은 배지 1 / ${escapeThemes.length + 1} · 금색 테두리 0'),
       findsOneWidget,
     );
-    expect(find.text('기본 테두리'), findsOneWidget);
+    expect(find.text(keepWords('기본 테두리')), findsOneWidget);
   });
 }

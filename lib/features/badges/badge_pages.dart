@@ -130,7 +130,7 @@ class BadgeBookPage extends StatelessWidget {
                           ),
                           SizedBox(height: 18 * s),
                           Text(
-                            title,
+                            keepWords(title),
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 28 * s,
@@ -140,10 +140,10 @@ class BadgeBookPage extends StatelessWidget {
                           ),
                           SizedBox(height: 6 * s),
                           Text(
-                            switch (progress.badge(id)) {
+                            keepWords(switch (progress.badge(id)) {
                               final t? => '${t.label} 테두리',
                               null => lock ?? '도전해 보세요',
-                            },
+                            }),
                             textAlign: TextAlign.center,
                             style: sub.copyWith(fontSize: 22 * s),
                           ),
