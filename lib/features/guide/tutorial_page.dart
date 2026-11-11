@@ -44,7 +44,8 @@ class TutorialPage extends StatelessWidget {
         palette: p,
         primary: !progress.tutorialDone,
         icon: Icons.flag_outlined,
-        label: progress.tutorialDone ? '완료했어요' : '튜토리얼 마치기',
+        // Korean wraps per character; break between the words ourselves.
+        label: progress.tutorialDone ? '완료했어요' : '튜토리얼\n마치기',
         onTap: progress.tutorialDone ? null : () => _finish(context),
       ),
     ],
