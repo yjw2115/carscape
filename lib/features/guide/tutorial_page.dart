@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/game_session.dart';
 import '../../core/rail_page.dart';
+import '../badges/badge_pages.dart';
+import '../badges/progress.dart';
 
 /// 튜토리얼 tab (윤종욱). Teaches how to play with the car's buttons.
 /// The lessons come later; this is the shell they plug into.
@@ -8,12 +10,44 @@ import '../../core/rail_page.dart';
 /// Not to be confused with features/tutorial, which is the first story
 /// "얼어붙은 밤" (문성훈).
 class TutorialPage extends StatelessWidget {
-  const TutorialPage({super.key, required this.session});
+  const TutorialPage({
+    super.key,
+    required this.session,
+    required this.progress,
+  });
   final GameSession session;
+  final Progress progress;
+
+  // ponytail: one button stands in for the lessons until they exist; the
+  // last lesson calls the same thing.
+  Future<void> _finish(BuildContext context) async {
+    await progress.award(tutorialBadgeId, BadgeTier.basic);
+    if (!context.mounted) return;
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => const BadgeGetPage(
+          id: tutorialBadgeId,
+          name: '기본 훈련',
+          tier: BadgeTier.basic,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) => RailPage(
     title: '튜토리얼',
+    rail: (s, p) => [
+      RailAction(
+        key: const Key('finishTutorial'),
+        s: s,
+        palette: p,
+        primary: !progress.tutorialDone,
+        icon: Icons.flag_outlined,
+        label: progress.tutorialDone ? '완료했어요' : '튜토리얼 마치기',
+        onTap: progress.tutorialDone ? null : () => _finish(context),
+      ),
+    ],
     body: (s, p) {
       final hint = TextStyle(fontSize: 28 * s, color: p.description);
       final missing = session.devices.keys
@@ -51,7 +85,13 @@ class TutorialPage extends StatelessWidget {
           RailCard(
             s: s,
             palette: p,
-            child: Text('튜토리얼 내용은 준비 중이에요.', style: hint),
+            child: Text(
+              progress.tutorialDone
+                  ? '튜토리얼을 마쳤어요. 홈에서 첫 번째 스토리 "얼어붙은 밤"을 플레이할 수 있어요.'
+                  : '튜토리얼 내용은 준비 중이에요. 지금은 "튜토리얼 마치기"를 누르면 '
+                        '기본 훈련 배지를 받고 첫 번째 스토리가 열려요.',
+              style: hint,
+            ),
           ),
         ],
       );

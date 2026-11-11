@@ -4,6 +4,7 @@ import 'package:flutter/semantics.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'core/game_session.dart';
+import 'features/badges/progress.dart';
 import 'features/records/record_store.dart';
 import 'features/settings/app_settings.dart';
 import 'vehicle/device_catalog.dart';
@@ -21,6 +22,7 @@ Future<void> main() async {
       session: GameSession(),
       records: RecordStore(prefs),
       settings: AppSettings(prefs),
+      progress: Progress(prefs),
     ),
   );
 }

@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:carscape/app.dart';
 import 'package:carscape/core/game_session.dart';
+import 'package:carscape/features/badges/progress.dart';
+import 'package:carscape/features/home/domain/escape_theme.dart';
 import 'package:carscape/features/records/record_store.dart';
 import 'package:carscape/features/records/records_page.dart';
 import 'package:carscape/features/settings/app_settings.dart';
@@ -105,6 +107,7 @@ void main() {
         session: session,
         records: records,
         settings: AppSettings(prefs),
+        progress: Progress(prefs),
       ),
     );
     await tester.pumpAndSettle();
@@ -169,6 +172,7 @@ void main() {
           session: session,
           records: RecordStore(prefs),
           settings: AppSettings(prefs),
+          progress: Progress(prefs),
         ),
       );
       await tester.pumpAndSettle();
@@ -204,4 +208,90 @@ void main() {
       expect(session.devices.values, contains(DeviceStatus.fallback));
     },
   );
+
+  test('unlock order: tutorial → 얼어붙은 밤 → the rest', () async {
+    final progress = Progress(await SharedPreferences.getInstance());
+    expect(progress.lockedReason(storyFrozenNight), '튜토리얼을 마치면 열려요');
+    expect(progress.lockedReason('case01'), '튜토리얼을 마치면 열려요');
+
+    await progress.award(tutorialBadgeId, BadgeTier.basic);
+    expect(progress.lockedReason(storyFrozenNight), isNull);
+    expect(progress.lockedReason('case01'), '얼어붙은 밤을 마치면 열려요');
+
+    await progress.markCleared(storyFrozenNight);
+    expect(progress.lockedReason('case01'), isNull);
+  });
+
+  test(
+    'badge tier: hints → basic, no hints → silver, half time → gold',
+    () async {
+      TutorialResult r(int minutes, int hints) => TutorialResult(
+        playTime: Duration(minutes: minutes),
+        hintsUsed: hints,
+        windowMoves: 0,
+      );
+      const limit = Duration(minutes: 30);
+      expect(tierFor(r(10, 1), limit), BadgeTier.basic);
+      expect(tierFor(r(20, 0), limit), BadgeTier.silver);
+      expect(tierFor(r(15, 0), limit), BadgeTier.gold);
+      expect(tierFor(r(5, 0), null), BadgeTier.silver, reason: 'no limit');
+
+      final progress = Progress(await SharedPreferences.getInstance());
+      expect(await progress.award('s', BadgeTier.silver), isTrue);
+      expect(
+        await progress.award('s', BadgeTier.basic),
+        isFalse,
+        reason: 'keeps best',
+      );
+      expect(progress.badge('s'), BadgeTier.silver);
+      expect(await progress.award('s', BadgeTier.gold), isTrue);
+    },
+  );
+
+  testWidgets('stories stay locked until the tutorial is finished', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1682, 1210);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final prefs = await SharedPreferences.getInstance();
+    final progress = Progress(prefs);
+    await tester.pumpWidget(
+      CarscapeApp(
+        vehicle: FakeVehicleService(),
+        session: GameSession()..devices.clear(),
+        records: RecordStore(prefs),
+        settings: AppSettings(prefs),
+        progress: progress,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('튜토리얼을 마치면 열려요'), findsWidgets);
+    expect(find.text('기어 상태를 확인하고 있어요'), findsNothing);
+
+    await tester.tap(find.bySemanticsLabel('튜토리얼'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('뒤로'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('finishTutorial')));
+    await tester.pumpAndSettle();
+    expect(find.text('새 배지를 획득했어요!'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('badgeContinue')));
+    await tester.pumpAndSettle();
+
+    expect(progress.tutorialDone, isTrue);
+    // 얼어붙은 밤 is open: its card waits for the gear instead of the lock.
+    // (flutter test runs as Android, so the home listens for the real car.)
+    expect(find.text('튜토리얼을 마치면 열려요'), findsNothing);
+    expect(find.text('기어 상태를 확인하고 있어요').hitTestable(), findsOneWidget);
+    expect(find.text('얼어붙은 밤을 마치면 열려요'), findsWidgets);
+
+    await tester.tap(find.bySemanticsLabel('배지'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('모은 배지 1 / ${escapeThemes.length + 1} · 금색 테두리 0'),
+      findsOneWidget,
+    );
+    expect(find.text('기본 테두리'), findsOneWidget);
+  });
 }
