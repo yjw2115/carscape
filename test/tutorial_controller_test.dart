@@ -1,267 +1,248 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:carscape/features/tutorial/domain/tutorial_controller.dart';
 import 'package:carscape/features/tutorial/domain/tutorial_models.dart';
+import 'package:carscape/features/tutorial/domain/tutorial_script.dart';
 
-void finishDialogue(TutorialController c) {
+TutorialController controller() =>
+    TutorialController(options: const TutorialOptions(enableClock: false));
+void dialogue(TutorialController c) {
   while (c.dialogueActive) {
     c.advanceDialogue();
   }
 }
 
-void powerOn(TutorialController c) {
+void runFor(TutorialController c, double seconds) {
+  for (int i = 0; i < (seconds * 10).round(); i++) {
+    c.tick(const Duration(milliseconds: 100));
+  }
+}
+
+void light(
+  TutorialController c,
+  CarSeat seat,
+  bool on, {
+  bool initial = false,
+}) => c.receive(
+  TutorialVehicleInput(
+    VehicleInputKind.cabinLight,
+    on ? 1 : 0,
+    seat: seat,
+    initial: initial,
+  ),
+);
+void window(TutorialController c, CarSeat seat, num value) =>
+    c.receive(TutorialVehicleInput(VehicleInputKind.window, value, seat: seat));
+void toVentilation(TutorialController c) {
   c.start();
-  finishDialogue(c);
+  dialogue(c);
   for (final seat in CarSeat.values) {
-    c.receive(TutorialVehicleInput(VehicleInputKind.cabinLight, 1, seat: seat));
+    light(c, seat, true);
   }
-  finishDialogue(c);
-}
-
-void reachCircuit(TutorialController c) {
-  powerOn(c);
+  dialogue(c);
   c.receive(const TutorialVehicleInput(VehicleInputKind.passengerHeater, 1));
-  if (c.stage == TutorialStage.glovebox) {
-    c.receive(const TutorialVehicleInput(VehicleInputKind.glovebox, 1));
-  }
-  finishDialogue(c);
-  c.moveWindow(CarSeat.driver, 1);
-  finishDialogue(c);
+  c.receive(const TutorialVehicleInput(VehicleInputKind.glovebox, 1));
+  dialogue(c);
 }
 
-void solveCircuit(TutorialController c) {
-  const moves = [2, 3, 1, 2];
+void toEscape(TutorialController c) {
+  toVentilation(c);
   for (final seat in CarSeat.values) {
-    for (int i = 0; i < moves[seat.index]; i++) {
-      c.moveWindow(seat, 1);
-    }
+    window(c, seat, 20);
   }
+  runFor(c, 6);
+  dialogue(c);
 }
 
 void main() {
-  late TutorialController c;
-  setUp(() {
-    c = TutorialController(options: const TutorialOptions(enableClock: false));
-  });
-  tearDown(() {
-    c.dispose();
-  });
-
-  test('complete requested storyline, with prerequisites enforced', () {
-    powerOn(c);
-    expect(c.stage, TutorialStage.glovebox);
-    c.receive(const TutorialVehicleInput(VehicleInputKind.glovebox, 1));
-    expect(c.stage, TutorialStage.glovebox);
-    c.receive(const TutorialVehicleInput(VehicleInputKind.passengerHeater, 1));
-    c.receive(const TutorialVehicleInput(VehicleInputKind.glovebox, 1));
-    finishDialogue(c);
-    expect(c.stage, TutorialStage.windowRequest);
-    c.moveWindow(CarSeat.passenger, -1);
-    expect(c.stage, TutorialStage.windowCircuit);
-    finishDialogue(c);
-    solveCircuit(c);
-    expect(c.stage, TutorialStage.wipers);
-    finishDialogue(c);
-    c.receive(const TutorialVehicleInput(VehicleInputKind.wiper, 1));
-    expect(c.stage, TutorialStage.departure);
-    finishDialogue(c);
-    c.receive(const TutorialVehicleInput(VehicleInputKind.accelerator, 1));
-    expect(c.stage, TutorialStage.departure);
-    for (final seat in CarSeat.values) {
-      c.receive(TutorialVehicleInput(VehicleInputKind.seatbelt, 1, seat: seat));
-    }
-    // A held accelerator cannot complete the stage when the last belt arrives.
-    c.receive(const TutorialVehicleInput(VehicleInputKind.accelerator, 1));
-    expect(c.stage, TutorialStage.departure);
-    c.receive(const TutorialVehicleInput(VehicleInputKind.accelerator, 0));
-    c.receive(const TutorialVehicleInput(VehicleInputKind.accelerator, 1));
-    expect(c.stage, TutorialStage.arrival);
-    finishDialogue(c);
-    expect(c.stage, TutorialStage.result);
-    expect(c.result!.windowMoves, 8);
-  });
-
   test(
-    'wrong light order resets logical power, repeated sensor values do not',
+    'complete four chapters with all windows, clear vision, then right steering',
     () {
+      final c = controller();
+      addTearDown(c.dispose);
+      toEscape(c);
+      expect(c.stage, TutorialStage.escape);
+      c.receive(const TutorialVehicleInput(VehicleInputKind.steering, 45));
+      runFor(c, 5);
+      expect(c.stage, TutorialStage.escape);
+      c.receive(const TutorialVehicleInput(VehicleInputKind.wiper, 1));
+      runFor(c, 3.2);
+      expect(c.shelterVisible, isTrue);
+      expect(c.stage, TutorialStage.escape); // An old right turn cannot finish.
+      c.receive(const TutorialVehicleInput(VehicleInputKind.steering, 0));
+      c.receive(const TutorialVehicleInput(VehicleInputKind.steering, -45));
+      expect(c.stage, TutorialStage.escape);
+      c.receive(const TutorialVehicleInput(VehicleInputKind.steering, 31));
+      expect(c.stage, TutorialStage.arrival);
+      dialogue(c);
+      expect(c.result, isNotNull);
+      expect(c.result!.windowMoves, 4);
+      expect(c.result!.usedTestNavigation, isFalse);
+    },
+  );
+  test(
+    'light order is rear left, rear right, driver, passenger; error resets',
+    () {
+      final c = controller();
+      addTearDown(c.dispose);
       c.start();
-      finishDialogue(c);
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.cabinLight,
-          1,
-          seat: CarSeat.rearLeft,
-        ),
-      );
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.cabinLight,
-          1,
-          seat: CarSeat.rearLeft,
-        ),
-      );
+      dialogue(c);
+      light(c, CarSeat.rearLeft, true);
+      light(c, CarSeat.rearLeft, true);
       expect(c.powerCount, 1);
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.cabinLight,
-          1,
-          seat: CarSeat.driver,
-        ),
-      );
+      light(c, CarSeat.passenger, true);
       expect(c.powerCount, 0);
-      expect(c.lights.values.every((v) => !v), isTrue);
       for (final seat in CarSeat.values) {
-        c.receive(
-          TutorialVehicleInput(VehicleInputKind.cabinLight, 1, seat: seat),
-        );
+        light(c, seat, true);
       }
       expect(c.stage, TutorialStage.glovebox);
     },
   );
-
-  test('unsupported glovebox sensor never blocks the game', () {
-    final fallback = TutorialController(
+  test('heat alone completes when glovebox sensor is unavailable', () {
+    final c = TutorialController(
       options: const TutorialOptions(
         enableClock: false,
         gloveboxSensorAvailable: false,
       ),
     );
-    addTearDown(fallback.dispose);
-    powerOn(fallback);
-    fallback.receive(
-      const TutorialVehicleInput(VehicleInputKind.passengerHeater, 1),
-    );
-    expect(fallback.stage, TutorialStage.windowRequest);
-  });
-
-  test(
-    'four different gates required, bounded windows, reversible moves, reset',
-    () {
-      reachCircuit(c);
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.window,
-          75,
-          seat: CarSeat.driver,
-        ),
-      );
-      expect(c.windowPositions[CarSeat.driver], 0);
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.window,
-          9,
-          seat: CarSeat.driver,
-        ),
-      );
-      expect(c.windowMoves, 0);
-      c.moveWindow(CarSeat.rearLeft, 1);
-      c.moveWindow(CarSeat.rearLeft, 1);
-      expect(c.connectedGates, 1);
-      c.moveWindow(CarSeat.rearLeft, -1);
-      expect(c.connectedGates, 0);
-      c.resetCircuit();
-      expect(c.circuitTouched, isEmpty);
-      expect(c.circuitOffsets, TutorialController.initialOffsets);
-      solveCircuit(c);
-      expect(c.stage, TutorialStage.wipers);
-    },
-  );
-
-  test('circuit has exactly one solution in safe window range', () {
-    final solutions = <List<int>>[];
-    for (int a = 0; a <= 5; a++) {
-      for (int b = 0; b <= 5; b++) {
-        for (int d = 0; d <= 5; d++) {
-          for (int e = 0; e <= 5; e++) {
-            final moves = [a, b, d, e];
-            c.circuitOffsets.setAll(
-              0,
-              List.generate(
-                4,
-                (i) => TutorialController.initialOffsets[i] + moves[i],
-              ),
-            );
-            if (c.connectedGates == 4) solutions.add(moves);
-          }
-        }
-      }
+    addTearDown(c.dispose);
+    c.start();
+    dialogue(c);
+    for (final seat in CarSeat.values) {
+      light(c, seat, true);
     }
-    expect(solutions, [
-      [2, 3, 1, 2],
-    ]);
+    dialogue(c);
+    c.receive(const TutorialVehicleInput(VehicleInputKind.passengerHeater, 1));
+    expect(c.stage, TutorialStage.ventilation);
+    expect(c.currentLine!.text, contains('가스가 새어나오잖아'));
+    expect(
+      TutorialScript.dialogue.values
+          .expand((v) => v)
+          .any((v) => v.text.contains('눈이 쌓여서 아무것도')),
+      isFalse,
+    );
   });
-
+  test('opening cost calibration matches requested tradeoff', () {
+    expect(
+      [
+        20,
+        40,
+        60,
+        80,
+        100,
+      ].map((p) => TutorialController.windowColdCost(p.toDouble())),
+      [1, 5, 10, 15, 20],
+    );
+  });
+  test('one fully open window cannot solve gas stage even with time', () {
+    final c = controller();
+    addTearDown(c.dispose);
+    toVentilation(c);
+    window(c, CarSeat.driver, 100);
+    runFor(c, 60);
+    expect(c.gasLevel, 0);
+    expect(c.cabinTemperature, lessThan(16));
+    expect(c.stage, TutorialStage.ventilation);
+    expect(c.frost, greaterThan(.9));
+    window(c, CarSeat.driver, 20);
+    for (final seat in [CarSeat.rearLeft, CarSeat.rearRight]) {
+      window(c, seat, 20);
+    }
+    runFor(c, 30);
+    expect(c.stage, TutorialStage.ventilation);
+    window(c, CarSeat.passenger, 20);
+    runFor(c, 6);
+    expect(c.stage, TutorialStage.escape);
+  });
   test(
-    'parking, disconnection, manual pause and background stop input and time',
+    'doors and trunk chill, block completion, recover; cold comment once',
     () {
-      c.start();
-      finishDialogue(c);
-      c.tick(const Duration(seconds: 10));
-      expect(c.elapsed.inSeconds, 10);
-      c.setManualPause(true);
-      c.tick(const Duration(seconds: 30));
+      final c = controller();
+      addTearDown(c.dispose);
+      toVentilation(c);
+      for (final seat in CarSeat.values) {
+        window(c, seat, 20);
+      }
+      c.receive(
+        const TutorialVehicleInput(VehicleInputKind.door, 1, areaId: 'REAR'),
+      );
+      runFor(c, 5);
+      expect(c.coldLoss, 14);
+      expect(c.frost, greaterThan(.3));
+      expect(c.ambientRevision, 1);
+      expect(c.stage, TutorialStage.ventilation);
+      c.receive(
+        const TutorialVehicleInput(VehicleInputKind.door, 0, areaId: 'REAR'),
+      );
       c.receive(
         const TutorialVehicleInput(
-          VehicleInputKind.cabinLight,
+          VehicleInputKind.door,
           1,
-          seat: CarSeat.rearLeft,
+          areaId: 'ROW_1_LEFT',
         ),
       );
-      expect(c.powerCount, 0);
-      expect(c.elapsed.inSeconds, 10);
-      c.setManualPause(false);
-      c.setBackground(true);
-      c.tick(const Duration(seconds: 15));
-      c.setBackground(false);
-      for (final kind in [
-        VehicleInputKind.parking,
-        VehicleInputKind.connection,
-      ]) {
-        c.receive(TutorialVehicleInput(kind, 0));
-        c.tick(const Duration(seconds: 20));
-        c.receive(
-          const TutorialVehicleInput(
-            VehicleInputKind.cabinLight,
-            1,
-            seat: CarSeat.rearLeft,
-          ),
-        );
-        expect(c.powerCount, 0);
-        c.receive(TutorialVehicleInput(kind, 1));
-      }
-      expect(c.elapsed.inSeconds, 10);
-      c.tick(const Duration(seconds: 5));
-      expect(c.elapsed.inSeconds, 15);
-    },
-  );
-
-  test(
-    'dialogue gates inputs; hint count, three levels, score and idle help',
-    () {
-      c.start();
+      expect(c.ambientRevision, 1);
       c.receive(
         const TutorialVehicleInput(
-          VehicleInputKind.cabinLight,
-          1,
-          seat: CarSeat.rearLeft,
+          VehicleInputKind.door,
+          0,
+          areaId: 'ROW_1_LEFT',
         ),
       );
-      c.useHint();
-      expect(c.hintsUsed, 0);
-      finishDialogue(c);
-      c.tick(const Duration(seconds: 46));
-      expect(c.showIdleHelp, isTrue);
-      for (int i = 0; i < 5; i++) {
-        c.useHint();
-      }
-      expect(c.hintsUsed, 3);
-      expect(c.canHint, isFalse);
-      expect(c.hintLevel, 3);
-      final score = TutorialResult(
-        playTime: c.elapsed,
-        hintsUsed: c.hintsUsed,
-        windowMoves: 0,
-      );
-      expect(score.recordedTime, const Duration(seconds: 226));
+      runFor(c, 7);
+      expect(c.stage, TutorialStage.escape);
     },
   );
+  test('40 percent opening is too cold, correcting to 20 each recovers', () {
+    final c = controller();
+    addTearDown(c.dispose);
+    toVentilation(c);
+    for (final seat in CarSeat.values) {
+      window(c, seat, 20);
+    }
+    window(c, CarSeat.driver, 40);
+    runFor(c, 6);
+    expect(c.stage, TutorialStage.ventilation);
+    window(c, CarSeat.driver, 20);
+    runFor(c, 6);
+    expect(c.stage, TutorialStage.escape);
+  });
+  test('pause stops game meters, clock, and wiper clearing', () {
+    final c = controller();
+    addTearDown(c.dispose);
+    toVentilation(c);
+    window(c, CarSeat.driver, 40);
+    final elapsed = c.elapsed;
+    c.setManualPause(true);
+    runFor(c, 20);
+    expect(c.elapsed, elapsed);
+    expect(c.gasLevel, 100);
+    expect(c.frost, 0);
+    c.setManualPause(false);
+    runFor(c, 2);
+    expect(c.frost, greaterThan(0));
+  });
+  test('hint cost and notes clock policy; test navigation marks result', () {
+    final c = controller();
+    addTearDown(c.dispose);
+    c.start();
+    dialogue(c);
+    c.useHint();
+    c.useHint();
+    c.testNavigate(1);
+    expect(c.stage, TutorialStage.glovebox);
+    c.testNavigate(1);
+    expect(c.stage, TutorialStage.ventilation);
+    c.testNavigate(-1);
+    expect(c.stage, TutorialStage.glovebox);
+    c.testNavigate(1);
+    c.testNavigate(1);
+    c.testNavigate(1);
+    dialogue(c);
+    expect(c.stage, TutorialStage.result);
+    expect(c.result!.usedTestNavigation, isTrue);
+    expect(
+      c.result!.recordedTime - c.result!.playTime,
+      const Duration(minutes: 2),
+    );
+  });
 }

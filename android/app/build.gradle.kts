@@ -47,3 +47,7 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    implementation("ai.pleos.playground:Vehicle:2.3.2")
+}
