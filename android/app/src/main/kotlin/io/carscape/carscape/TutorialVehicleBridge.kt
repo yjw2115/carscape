@@ -114,6 +114,12 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
         send(mapOf("type" to "issue", "feature" to feature, "message" to message))
     }
 
+    private fun clearIssue(feature: String) {
+        if (problems.remove(feature) != null) {
+            send(mapOf("type" to "issue", "feature" to feature, "message" to ""))
+        }
+    }
+
     private fun emit(kind: String, value: Any?, area: String? = null) {
         if (Looper.myLooper() != Looper.getMainLooper()) { main.post { emit(kind, value, area) }; return }
         val key = "$kind:${area ?: "global"}"
@@ -124,14 +130,20 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
         send(mapOf("type" to "value", "kind" to kind, "value" to value, "area" to area, "initial" to initial))
     }
 
-    private fun installReader(key: String, session: Int, read: ((Any?) -> Unit, (Exception) -> Unit) -> Unit, output: (Any?) -> Unit) {
+    private fun installReader(
+        key: String,
+        session: Int,
+        read: ((Any?) -> Unit, (Exception) -> Unit) -> Unit,
+        output: (Any?) -> Unit,
+        enabled: () -> Boolean = { true },
+        onUnavailable: () -> Unit = {},
+    ) {
         readers[key] = reader@{
-            if (!active(session) || pending.containsKey(key)) return@reader
+            if (!active(session) || !enabled() || pending.containsKey(key)) return@reader
             val request = ++requestSequence
             pending[key] = request
             val observedKey = when {
                 key.startsWith("light:") -> "cabinLight:${key.removePrefix("light:")}"
-                key.startsWith("heater") -> "passengerHeater:global"
                 key == "wiper" || key == "parking" || key == "steering" -> "$key:global"
                 else -> key
             }
@@ -140,6 +152,7 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
             // A newer subscription observation wins over an older GET reply.
             fun changedWhileReading() = hadValue != values.containsKey(observedKey) || beforeRead != values[observedKey]
             fun unavailable() {
+                onUnavailable()
                 when {
                     key.startsWith("light:") -> emit("cabinLight", null, key.removePrefix("light:"))
                     key.startsWith("window:") -> emit("window", null, key.removePrefix("window:"))
@@ -167,7 +180,7 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
                         issue(key, "현재 상태를 읽을 수 없습니다")
                         unavailable()
                     } else {
-                        if (problems.remove(key) != null) send(mapOf("type" to "issue", "feature" to key, "message" to ""))
+                        clearIssue(key)
                         output(value)
                     }
                 } }, { error -> main.post {
@@ -262,10 +275,47 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
                 var power: Boolean? = null
                 var fan: Int? = null
                 var temperature: Float? = null
-                fun update() { if (power != null && fan != null && temperature != null) emit("passengerHeater", power == true && fan!! > 0 && temperature!! >= 26f) }
-                installReader("heaterPower", session, { ok, fail -> hvac.getHvacPowerState(powerArea, ok, fail) }, { power = it as? Boolean; update() })
-                installReader("heaterFan", session, { ok, fail -> hvac.getHvacFanSpeed(fanArea, ok, fail) }, { fan = it as? Int; update() })
-                installReader("heaterTemperature", session, { ok, fail -> hvac.getHvacTemperature(temperatureArea, TemperatureUnit.CELSIUS, ok, fail) }, { temperature = it as? Float; update() })
+                fun update() {
+                    val currentFan = fan
+                    val currentTemperature = temperature
+                    if (power == false) {
+                        emit("passengerHeater", false)
+                    } else if (power == true && currentFan != null && currentTemperature != null) {
+                        emit("passengerHeater", currentFan > 0 && currentTemperature >= 26f)
+                    }
+                }
+                fun updatePower(value: Boolean?) {
+                    if (power != value) {
+                        power = value
+                        fan = null
+                        temperature = null
+                        // Replies from the previous power state can arrive after the transition.
+                        pending.remove("heaterFan")
+                        pending.remove("heaterTemperature")
+                    }
+                    if (value == false) {
+                        clearIssue("heaterFan")
+                        clearIssue("heaterTemperature")
+                    }
+                    update()
+                }
+                installReader("heaterPower", session,
+                    { ok, fail -> hvac.getHvacPowerState(powerArea, ok, fail) },
+                    { updatePower(it as? Boolean) },
+                    onUnavailable = { updatePower(null) },
+                )
+                installReader("heaterFan", session,
+                    { ok, fail -> hvac.getHvacFanSpeed(fanArea, ok, fail) },
+                    { fan = it as? Int; update() },
+                    enabled = { power == true },
+                    onUnavailable = { fan = null },
+                )
+                installReader("heaterTemperature", session,
+                    { ok, fail -> hvac.getHvacTemperature(temperatureArea, TemperatureUnit.CELSIUS, ok, fail) },
+                    { temperature = it as? Float; update() },
+                    enabled = { power == true },
+                    onUnavailable = { temperature = null },
+                )
             }
             checkFinished(session)
         }

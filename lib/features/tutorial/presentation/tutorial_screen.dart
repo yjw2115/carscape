@@ -32,10 +32,9 @@ class TutorialScreen extends StatefulWidget {
 }
 
 class _TutorialScreenState extends State<TutorialScreen>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with WidgetsBindingObserver {
   late TutorialController c;
   late final NarrationPlayer _voice;
-  late final AnimationController _animation;
   StreamSubscription<TutorialVehicleInput>? _subscription;
   TutorialInputSource? _source;
   int _revision = -1;
@@ -71,11 +70,7 @@ class _TutorialScreenState extends State<TutorialScreen>
                 defaultTargetPlatform == TargetPlatform.android
             ? PleosTutorialInputSource()
             : null);
-    _voice = widget.narrationPlayer ?? SystemNarrationPlayer();
-    _animation = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 18),
-    )..repeat();
+    _voice = widget.narrationPlayer ?? FrozenNightNarrationPlayer();
     c.addListener(_changed);
     if (!_demo) {
       c.enableVehicleMode();
@@ -194,8 +189,11 @@ class _TutorialScreenState extends State<TutorialScreen>
       if (mounted) setState(() => _ambientCaption = false);
     });
     if (!_muted && !c.paused) {
+      final token = _speechToken;
       final success = await _voice.speak(TutorialScript.coldComment);
-      if (!success && mounted) setState(() => _voiceUnavailable = true);
+      if (mounted && token == _speechToken && !_muted && !c.paused) {
+        setState(() => _voiceUnavailable = !success);
+      }
     }
   }
 
@@ -215,7 +213,9 @@ class _TutorialScreenState extends State<TutorialScreen>
     _readingTimer = Timer(readingTime, reading.complete);
     final success = _muted ? true : await _voice.speak(line.text);
     if (!mounted || token != _speechToken) return;
-    if (!success) setState(() => _voiceUnavailable = true);
+    if (!_muted && _voiceUnavailable == success) {
+      setState(() => _voiceUnavailable = !success);
+    }
     await reading.future;
     if (!mounted || token != _speechToken || c.paused) return;
     c.advanceDialogue();
@@ -387,7 +387,10 @@ class _TutorialScreenState extends State<TutorialScreen>
         break;
       }
       final success = await _voice.speak(line.text);
-      if (!success && mounted) setState(() => _voiceUnavailable = true);
+      if (!mounted || token != _speechToken || !_notesOpen) return;
+      if (!_muted && !c.appInBackground && _voiceUnavailable == success) {
+        setState(() => _voiceUnavailable = !success);
+      }
     }
   }
 
@@ -456,7 +459,6 @@ class _TutorialScreenState extends State<TutorialScreen>
     if (!_demo) {
       unawaited(_source!.setLightPuzzleActive(false).catchError((_) {}));
     }
-    _animation.dispose();
     unawaited(_voice.dispose());
     super.dispose();
   }
@@ -470,52 +472,48 @@ class _TutorialScreenState extends State<TutorialScreen>
     child: Scaffold(
       bottomNavigationBar: _testNavigation ? _testToolbar() : null,
       body: SafeArea(
-        child: AnimatedBuilder(
-          animation: _animation,
-          builder: (context, _) => Stack(
-            children: [
-              Positioned.fill(
-                child: c.stage == TutorialStage.blackout
-                    ? const ColoredBox(color: Colors.black)
-                    : SnowBackdrop(
-                        time: _animation.value,
-                        shelter:
-                            c.stage == TutorialStage.result ||
-                            c.stage == TutorialStage.arrival,
-                      ),
-              ),
-              if (c.stage != TutorialStage.blackout)
-                Positioned.fill(
-                  child: ColoredBox(
-                    color: TutorialColors.background.withValues(
-                      alpha:
-                          c.stage == TutorialStage.intro ||
-                              c.stage == TutorialStage.result
-                          ? .32
-                          : .83,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: c.stage == TutorialStage.blackout
+                  ? const ColoredBox(color: Colors.black)
+                  : SnowBackdrop(
+                      shelter:
+                          c.stage == TutorialStage.result ||
+                          c.stage == TutorialStage.arrival,
                     ),
+            ),
+            if (c.stage != TutorialStage.blackout)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: TutorialColors.background.withValues(
+                    alpha:
+                        c.stage == TutorialStage.intro ||
+                            c.stage == TutorialStage.result
+                        ? .32
+                        : .83,
                   ),
                 ),
-              Positioned.fill(
-                child: switch (c.stage) {
-                  TutorialStage.intro => _intro(),
-                  TutorialStage.result => _result(),
-                  TutorialStage.blackout => _blackout(),
-                  TutorialStage.arrival => _arrival(),
-                  _ => _play(),
-                },
               ),
-              if (c.dialogueActive &&
-                  c.stage != TutorialStage.blackout &&
-                  c.stage != TutorialStage.arrival &&
-                  !c.paused)
-                _dialogueOverlay(),
-              if (c.paused &&
-                  c.playing &&
-                  (!_notesOpen || !c.parked || !c.connected))
-                _pauseOverlay(),
-            ],
-          ),
+            Positioned.fill(
+              child: switch (c.stage) {
+                TutorialStage.intro => _intro(),
+                TutorialStage.result => _result(),
+                TutorialStage.blackout => _blackout(),
+                TutorialStage.arrival => _arrival(),
+                _ => _play(),
+              },
+            ),
+            if (c.dialogueActive &&
+                c.stage != TutorialStage.blackout &&
+                c.stage != TutorialStage.arrival &&
+                !c.paused)
+              _dialogueOverlay(),
+            if (c.paused &&
+                c.playing &&
+                (!_notesOpen || !c.parked || !c.connected))
+              _pauseOverlay(),
+          ],
         ),
       ),
     ),
@@ -536,7 +534,7 @@ class _TutorialScreenState extends State<TutorialScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _eyebrow('CARSCAPE  /  TUTORIAL 01'),
+                    _eyebrow('CARSCAPE  /  STAGE 01'),
                     const SizedBox(height: 20),
                     const Text(
                       '얼어붙은 밤',
@@ -737,7 +735,7 @@ class _TutorialScreenState extends State<TutorialScreen>
       final narrow = constraints.maxWidth < 740;
       final pad = constraints.maxWidth < 600 ? 16.0 : 26.0;
       final left = _taskPanel();
-      final artwork = TutorialArtwork(controller: c, time: _animation.value);
+      final artwork = TutorialArtwork(controller: c);
       return Padding(
         padding: EdgeInsets.all(pad),
         child: Column(
@@ -1106,7 +1104,7 @@ class _TutorialScreenState extends State<TutorialScreen>
       ),
       if (_voiceUnavailable)
         const Text(
-          '한국어 음성 없음 · 자막으로 진행',
+          '음성 재생 실패 · 자막으로 진행',
           style: TextStyle(fontSize: 11, color: TutorialColors.muted),
         ),
     ],
@@ -1311,9 +1309,7 @@ class _TutorialScreenState extends State<TutorialScreen>
 
   Widget _arrival() => Stack(
     children: [
-      Positioned.fill(
-        child: SnowBackdrop(time: _animation.value, shelter: true),
-      ),
+      Positioned.fill(child: const SnowBackdrop(shelter: true)),
       Positioned.fill(
         child: ColoredBox(
           color: TutorialColors.background.withValues(alpha: .4),
@@ -1376,7 +1372,7 @@ class _TutorialScreenState extends State<TutorialScreen>
                       size: 55,
                     ),
                     const SizedBox(height: 20),
-                    _eyebrow('TUTORIAL COMPLETE', color: TutorialColors.warm),
+                    _eyebrow('스테이지 1 완료', color: TutorialColors.warm),
                     if (r.usedTestNavigation)
                       const Text(
                         '단계 이동을 사용한 테스트 기록',
