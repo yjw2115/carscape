@@ -41,10 +41,10 @@ void main() {
         home: HomeScreen(
           parkingSource: parking,
           brightness: brightness,
-          onStart: started.add,
-          onTutorial: () => opened.add('tutorial'),
-          onRecords: () => opened.add('records'),
-          onSettings: () => opened.add('settings'),
+          onStart: (_, theme) async => started.add(theme),
+          onTutorial: (_) async => opened.add('tutorial'),
+          onRecords: (_) async => opened.add('records'),
+          onSettings: (_) async => opened.add('settings'),
           openVehicleCheck: (_) async => opened.add('check'),
         ),
       ),
@@ -58,10 +58,10 @@ void main() {
   testWidgets('parked car can start the selected theme', (tester) async {
     await pumpHome(tester);
 
-    expect(find.text('시간당 120mm'), findsOneWidget);
+    expect(find.text('얼어붙은 밤'), findsOneWidget);
     expect(startButton(), findsOneWidget);
     await tester.tap(startButton());
-    expect(started.single.id, 'case01');
+    expect(started.single.id, storyFrozenNight);
   });
 
   testWidgets('gear outside P replaces the start button', (tester) async {
@@ -88,7 +88,11 @@ void main() {
     await tester.tap(find.bySemanticsLabel('다음 테마'));
     await tester.pumpAndSettle();
     await tester.tap(startButton());
-    expect(started.last.id, 'case02');
+    expect(started.last.id, 'case01');
+    // Gear monitoring pauses while the started page is open; the car
+    // reports the gear again once it resumes.
+    await tester.pump();
+    parking.controller.add(ParkingState.parked);
 
     await tester.tap(find.bySemanticsLabel('이전 테마'));
     await tester.pumpAndSettle();
@@ -101,19 +105,19 @@ void main() {
   testWidgets('tapping a preview card selects it', (tester) async {
     await pumpHome(tester);
 
-    await tester.tap(find.bySemanticsLabel('자정의 주차장 테마 보기'));
+    await tester.tap(find.bySemanticsLabel('시간당 120mm 테마 보기'));
     await tester.pumpAndSettle();
     await tester.tap(startButton());
-    expect(started.single.id, 'case02');
+    expect(started.single.id, 'case01');
   });
 
   testWidgets('swiping left selects the next theme', (tester) async {
     await pumpHome(tester);
 
-    await tester.fling(find.text('시간당 120mm'), const Offset(-400, 0), 1500);
+    await tester.fling(find.text('얼어붙은 밤'), const Offset(-400, 0), 1500);
     await tester.pumpAndSettle();
     await tester.tap(startButton());
-    expect(started.single.id, 'case02');
+    expect(started.single.id, 'case01');
   });
 
   testWidgets('chips stay as wide as their labels', (tester) async {

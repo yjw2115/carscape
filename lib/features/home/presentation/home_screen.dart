@@ -37,10 +37,13 @@ class HomeScreen extends StatefulWidget {
 
   /// Overrides the system light/dark setting.
   final Brightness? brightness;
-  final VoidCallback? onTutorial;
-  final VoidCallback? onRecords;
-  final VoidCallback? onSettings;
-  final ValueChanged<EscapeTheme>? onStart;
+
+  /// Page callbacks complete when the player comes back. Gear monitoring
+  /// pauses meanwhile, so the opened page may use the vehicle bridge.
+  final Future<void> Function(BuildContext context)? onTutorial;
+  final Future<void> Function(BuildContext context)? onRecords;
+  final Future<void> Function(BuildContext context)? onSettings;
+  final Future<void> Function(BuildContext context, EscapeTheme theme)? onStart;
 
   /// Opens the vehicle check (E2–E5, `openVehicleCheck` in features/entry)
   /// and completes when the player comes back. Gear monitoring pauses
@@ -147,14 +150,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     return Theme(
-      data: ThemeData(
-        useMaterial3: true,
-        fontFamily: 'Pretendard',
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: HyundaiColors.blue,
-          brightness: brightness,
-        ),
-      ),
+      data: homeTheme(brightness),
       child: Scaffold(
         backgroundColor: palette.background,
         body: SafeArea(
@@ -177,7 +173,9 @@ class _HomeScreenState extends State<HomeScreen>
                       parking: _parking,
                       onSelectPage: (page) => _animateTo(page.toDouble()),
                       onStart: (theme) => widget.onStart != null
-                          ? widget.onStart!(theme)
+                          ? _pauseParkingWhile(
+                              () => widget.onStart!(context, theme),
+                            )
                           : comingSoon(theme.title, '시작 전 차량 점검 화면은 준비 중이에요.'),
                       onDragStart: _dragStart,
                       onDragUpdate: _dragUpdate,
@@ -191,13 +189,21 @@ class _HomeScreenState extends State<HomeScreen>
                     child: HomeRail(
                       s: s,
                       palette: palette,
-                      onTutorial: widget.onTutorial ?? _openTutorial,
-                      onRecords:
-                          widget.onRecords ??
-                          () => comingSoon('기록·순위', '플레이 기록과 순위는 준비 중이에요.'),
-                      onSettings:
-                          widget.onSettings ??
-                          () => comingSoon('설정', '설정 화면은 준비 중이에요.'),
+                      onTutorial: widget.onTutorial != null
+                          ? () => _pauseParkingWhile(
+                              () => widget.onTutorial!(context),
+                            )
+                          : _openTutorial,
+                      onRecords: widget.onRecords != null
+                          ? () => _pauseParkingWhile(
+                              () => widget.onRecords!(context),
+                            )
+                          : () => comingSoon('기록·순위', '플레이 기록과 순위는 준비 중이에요.'),
+                      onSettings: widget.onSettings != null
+                          ? () => _pauseParkingWhile(
+                              () => widget.onSettings!(context),
+                            )
+                          : () => comingSoon('설정', '설정 화면은 준비 중이에요.'),
                       onVehicleCheck: () => widget.openVehicleCheck != null
                           ? _pauseParkingWhile(
                               () => widget.openVehicleCheck!(context),
