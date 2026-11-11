@@ -45,6 +45,7 @@ void main() {
           onTutorial: () => opened.add('tutorial'),
           onRecords: () => opened.add('records'),
           onSettings: () => opened.add('settings'),
+          openVehicleCheck: (_) async => opened.add('check'),
         ),
       ),
     );
@@ -130,7 +131,39 @@ void main() {
     await tester.tap(find.bySemanticsLabel('튜토리얼'));
     await tester.tap(find.bySemanticsLabel('기록·순위'));
     await tester.tap(find.bySemanticsLabel('설정'));
-    expect(opened, ['tutorial', 'records', 'settings']);
+    await tester.tap(find.bySemanticsLabel('차량 점검'));
+    await tester.pumpAndSettle();
+    expect(opened, ['tutorial', 'records', 'settings', 'check']);
+  });
+
+  testWidgets('vehicle check pauses gear monitoring until it returns', (
+    tester,
+  ) async {
+    final away = Completer<void>();
+    tester.view.physicalSize = const Size(1682, 1210);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HomeScreen(
+          parkingSource: parking,
+          openVehicleCheck: (_) => away.future,
+        ),
+      ),
+    );
+    parking.controller.add(ParkingState.parked);
+    await tester.pumpAndSettle();
+    expect(parking.controller.hasListener, isTrue);
+
+    await tester.tap(find.bySemanticsLabel('차량 점검'));
+    await tester.pumpAndSettle();
+    expect(parking.controller.hasListener, isFalse);
+
+    away.complete();
+    await tester.pumpAndSettle();
+    expect(parking.listens, 2);
+    expect(parking.controller.hasListener, isTrue);
+    expect(find.text('기어 상태를 확인하고 있어요').hitTestable(), findsOneWidget);
   });
 
   for (final brightness in Brightness.values) {

@@ -10,6 +10,7 @@ class HomeRail extends StatelessWidget {
     required this.onTutorial,
     required this.onRecords,
     required this.onSettings,
+    required this.onVehicleCheck,
     required this.onPrevious,
     required this.onNext,
   });
@@ -19,6 +20,7 @@ class HomeRail extends StatelessWidget {
   final VoidCallback onTutorial;
   final VoidCallback onRecords;
   final VoidCallback onSettings;
+  final VoidCallback onVehicleCheck;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
 
@@ -65,6 +67,14 @@ class HomeRail extends StatelessWidget {
             icon: Icons.settings_outlined,
             label: '설정',
             onTap: onSettings,
+          ),
+          SizedBox(height: 16 * s),
+          _MenuButton(
+            s: s,
+            palette: p,
+            icon: Icons.directions_car_outlined,
+            label: '차량 점검',
+            onTap: onVehicleCheck,
           ),
           const Spacer(),
           Text(

@@ -1,25 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
+import 'core/game_session.dart';
+import 'core/theme.dart';
+import 'features/entry/check_intro_screen.dart';
 import 'features/home/presentation/home_screen.dart';
-import 'features/tutorial/presentation/tutorial_style.dart';
+import 'vehicle/device_catalog.dart';
+import 'vehicle/fake_vehicle_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   if (kIsWeb) SemanticsBinding.instance.ensureSemantics();
-  runApp(const CarscapePreview());
-}
-
-/// App entry. Starts on the home screen, which pushes the tutorial and other
-/// features. The tutorial keeps its own dark theme from [tutorialTheme].
-class CarscapePreview extends StatelessWidget {
-  const CarscapePreview({super.key});
-
-  @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'Carscape',
-    debugShowCheckedModeBanner: false,
-    theme: tutorialTheme(),
-    home: const HomeScreen(),
+  // ponytail: fake car until the Pleos Kotlin bridge lands; swap here.
+  // One decoy is unsupported so the result screen's fallback notice shows.
+  final vehicle = FakeVehicleService(unsupported: {DeviceId.steeringHeater});
+  final session = GameSession();
+  runApp(
+    MaterialApp(
+      title: 'Carscape',
+      debugShowCheckedModeBanner: false,
+      theme: appTheme(),
+      // Home is the first screen; its "차량 점검" button opens E2–E5.
+      home: HomeScreen(
+        openVehicleCheck: (context) =>
+            openVehicleCheck(context, vehicle, session),
+      ),
+    ),
   );
 }

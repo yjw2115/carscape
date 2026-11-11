@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../tutorial/presentation/tutorial_screen.dart';
+import '../../tutorial/presentation/tutorial_style.dart';
 import '../domain/escape_theme.dart';
 import '../integration/parking_status_source.dart';
 import 'coming_soon_page.dart';
@@ -27,6 +28,7 @@ class HomeScreen extends StatefulWidget {
     this.onRecords,
     this.onSettings,
     this.onStart,
+    this.openVehicleCheck,
   });
 
   /// Must not be empty.
@@ -39,6 +41,11 @@ class HomeScreen extends StatefulWidget {
   final VoidCallback? onRecords;
   final VoidCallback? onSettings;
   final ValueChanged<EscapeTheme>? onStart;
+
+  /// Opens the vehicle check (E2–E5, `openVehicleCheck` in features/entry)
+  /// and completes when the player comes back. Gear monitoring pauses
+  /// meanwhile.
+  final Future<void> Function(BuildContext context)? openVehicleCheck;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -82,16 +89,29 @@ class _HomeScreenState extends State<HomeScreen>
 
   /// The vehicle bridge serves one listener at a time, so stop listening
   /// before another screen (such as the tutorial) starts its own session.
-  Future<void> _open(WidgetBuilder builder) async {
-    final subscription = _subscription;
+  /// The cancel message is sent right away and platform messages keep their
+  /// order, so the next screen's listen always arrives after it.
+  Future<void> _pauseParkingWhile(Future<void> Function() away) async {
+    unawaited(_subscription?.cancel());
     _subscription = null;
-    await subscription?.cancel();
-    if (!mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute<void>(builder: builder));
+    await away();
     if (!mounted) return;
     setState(() => _parking = ParkingState.checking);
     _watchParking();
   }
+
+  Future<void> _open(WidgetBuilder builder) => _pauseParkingWhile(
+    () => Navigator.of(context).push(MaterialPageRoute<void>(builder: builder)),
+  );
+
+  /// The app theme belongs to the entry screens, so the tutorial brings its
+  /// own (same as the mode select screen does).
+  Future<void> _openTutorial() => _open(
+    (context) => Theme(
+      data: tutorialTheme(),
+      child: TutorialScreen(onFinished: (_) => Navigator.of(context).pop()),
+    ),
+  );
 
   void _animateTo(double page) => _position.animateTo(
     page,
@@ -171,15 +191,18 @@ class _HomeScreenState extends State<HomeScreen>
                     child: HomeRail(
                       s: s,
                       palette: palette,
-                      onTutorial:
-                          widget.onTutorial ??
-                          () => _open((_) => const TutorialScreen()),
+                      onTutorial: widget.onTutorial ?? _openTutorial,
                       onRecords:
                           widget.onRecords ??
                           () => comingSoon('기록·순위', '플레이 기록과 순위는 준비 중이에요.'),
                       onSettings:
                           widget.onSettings ??
                           () => comingSoon('설정', '설정 화면은 준비 중이에요.'),
+                      onVehicleCheck: () => widget.openVehicleCheck != null
+                          ? _pauseParkingWhile(
+                              () => widget.openVehicleCheck!(context),
+                            )
+                          : comingSoon('차량 점검', '차량 점검 화면은 준비 중이에요.'),
                       onPrevious: () => _step(-1),
                       onNext: () => _step(1),
                     ),
