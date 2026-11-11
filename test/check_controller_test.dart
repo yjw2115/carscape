@@ -36,10 +36,10 @@ void main() {
       }
       final noDecoys = planDirectChecks({
         DeviceId.cabinLight,
-        DeviceId.seatbelt,
+        DeviceId.steering,
         DeviceId.window,
       }, Random(0));
-      expect(noDecoys.toSet(), {DeviceId.cabinLight, DeviceId.seatbelt});
+      expect(noDecoys.toSet(), {DeviceId.cabinLight, DeviceId.steering});
     },
   );
 
@@ -48,11 +48,14 @@ void main() {
     () async {
       final c = await ready(
         FakeVehicleService(
-          unsupported: {DeviceId.recirculation, DeviceId.glovebox},
+          unsupported: {DeviceId.recirculation, DeviceId.passengerHeater},
         ),
       );
-      expect(c.session.devices[DeviceId.glovebox], DeviceStatus.unsupported);
-      expect(c.session.canUse(DeviceId.glovebox), isFalse);
+      expect(
+        c.session.devices[DeviceId.passengerHeater],
+        DeviceStatus.unsupported,
+      );
+      expect(c.session.canUse(DeviceId.passengerHeater), isFalse);
       expect(c.plan, isNot(contains(DeviceId.recirculation)));
       expect(c.supportedCount, DeviceId.values.length - 2);
     },
@@ -115,7 +118,7 @@ void main() {
         tester.view.physicalSize = size;
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.reset);
-        final car = FakeVehicleService(unsupported: {DeviceId.glovebox});
+        final car = FakeVehicleService(unsupported: {DeviceId.passengerHeater});
         final session = GameSession();
         // Home has no scroll view when wide; narrow builds lazily.
         Future<void> show(String key, {bool up = false}) async {
@@ -159,7 +162,7 @@ void main() {
         expect(find.text('CHECK COMPLETE'), findsNothing, reason: 'back home');
         await show('openCheck');
         expect(find.text('차량 점검 완료 · 화면 터치 대체 1개'), findsOneWidget);
-        expect(session.canUse(DeviceId.glovebox), isFalse);
+        expect(session.canUse(DeviceId.passengerHeater), isFalse);
 
         await show('tutorial', up: true);
         await tester.tap(find.byKey(const Key('tutorial')));

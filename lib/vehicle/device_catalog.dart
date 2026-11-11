@@ -3,14 +3,14 @@
 ///
 /// - [usedInGame]: some scenario reads it. Never shown to players as such.
 /// - [checkable]: may be picked for the hands-on check. Devices visible from
-///   outside the car (창문, 와이퍼) and the accelerator are never asked for.
+///   outside the car (창문, 문, 와이퍼) are never asked for.
 /// - [perSeat]: the SDK reports one value per seat.
 enum DeviceId {
   // Read by the tutorial "얼어붙은 밤" (docs/tutorial-integration.md).
   cabinLight(
-    '실내등',
-    '실내등을 켜거나 꺼보세요',
-    '천장 앞쪽, 실내등 스위치예요',
+    '독서등',
+    '독서등을 켜거나 꺼보세요',
+    '천장에 있는 독서등 버튼이에요',
     usedInGame: true,
     perSeat: true,
   ),
@@ -20,17 +20,10 @@ enum DeviceId {
     '공조 버튼 줄의 조수석 온도 조절이에요',
     usedInGame: true,
   ),
-  glovebox('글로브박스', '글로브박스를 열었다 닫아보세요', '조수석 앞 수납함이에요', usedInGame: true),
-  seatbelt(
-    '안전벨트',
-    '안전벨트를 풀었다 다시 채워보세요',
-    '앉은 자리의 안전벨트면 돼요',
-    usedInGame: true,
-    perSeat: true,
-  ),
+  steering('핸들', '핸들을 살짝 돌려보세요', '정차 상태에서 조금만 돌리면 돼요', usedInGame: true),
   window('창문', '', '', usedInGame: true, perSeat: true, checkable: false),
+  door('문·트렁크', '', '', usedInGame: true, checkable: false),
   wiper('와이퍼', '', '', usedInGame: true, checkable: false),
-  accelerator('가속 페달', '', '', usedInGame: true, checkable: false),
   gear('기어', '', '', usedInGame: true, checkable: false),
 
   // Decoys: common physical buttons, mixed in so the check spoils nothing.

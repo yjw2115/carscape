@@ -4,8 +4,6 @@ import '../../core/theme.dart';
 import '../../vehicle/device_catalog.dart';
 import '../../vehicle/fake_vehicle_panel.dart';
 import '../../vehicle/vehicle_service.dart';
-import '../tutorial/domain/tutorial_controller.dart';
-import '../tutorial/domain/tutorial_models.dart';
 import '../tutorial/presentation/tutorial_screen.dart';
 import '../tutorial/presentation/tutorial_style.dart';
 import 'check_intro_screen.dart';
@@ -31,10 +29,7 @@ class _ModeSelectScreenState extends State<ModeSelectScreen> {
     MaterialPageRoute<void>(
       builder: (context) => Theme(
         data: tutorialTheme(),
-        child: _TutorialRoute(
-          gloveboxSensor: widget.session.canUse(DeviceId.glovebox),
-          onFinished: Navigator.of(context).pop,
-        ),
+        child: TutorialScreen(onFinished: (_) => Navigator.of(context).pop()),
       ),
     ),
   );
@@ -338,36 +333,5 @@ class _Chip extends StatelessWidget {
         ),
       ],
     ),
-  );
-}
-
-/// Owns the TutorialController so check results reach the tutorial.
-class _TutorialRoute extends StatefulWidget {
-  const _TutorialRoute({
-    required this.gloveboxSensor,
-    required this.onFinished,
-  });
-  final bool gloveboxSensor;
-  final VoidCallback onFinished;
-
-  @override
-  State<_TutorialRoute> createState() => _TutorialRouteState();
-}
-
-class _TutorialRouteState extends State<_TutorialRoute> {
-  late final _controller = TutorialController(
-    options: TutorialOptions(gloveboxSensorAvailable: widget.gloveboxSensor),
-  );
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => TutorialScreen(
-    controller: _controller,
-    onFinished: (_) => widget.onFinished(),
   );
 }
