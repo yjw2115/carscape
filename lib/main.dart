@@ -1,25 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
-import 'features/tutorial/presentation/tutorial_screen.dart';
-import 'features/tutorial/presentation/tutorial_style.dart';
+import 'core/game_session.dart';
+import 'core/theme.dart';
+import 'features/entry/mode_select_screen.dart';
+import 'vehicle/device_catalog.dart';
+import 'vehicle/fake_vehicle_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   if (kIsWeb) SemanticsBinding.instance.ensureSemantics();
-  runApp(const CarscapePreview());
-}
-
-/// Standalone entry after theme selection. The team's home/entry feature can
-/// push TutorialScreen directly without using this preview application.
-class CarscapePreview extends StatelessWidget {
-  const CarscapePreview({super.key});
-
-  @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'Carscape · 얼어붙은 밤',
-    debugShowCheckedModeBanner: false,
-    theme: tutorialTheme(),
-    home: const TutorialScreen(),
+  // ponytail: fake car until the Pleos Kotlin bridge lands; swap here.
+  // One decoy is unsupported so the result screen's fallback notice shows.
+  final vehicle = FakeVehicleService(unsupported: {DeviceId.steeringHeater});
+  runApp(
+    MaterialApp(
+      title: 'Carscape',
+      debugShowCheckedModeBanner: false,
+      theme: appTheme(),
+      home: ModeSelectScreen(vehicle: vehicle, session: GameSession()),
+    ),
   );
 }
