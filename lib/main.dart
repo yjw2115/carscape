@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
-import 'features/tutorial/presentation/tutorial_screen.dart';
+import 'features/home/presentation/home_screen.dart';
 import 'features/tutorial/presentation/tutorial_style.dart';
 
 void main() {
@@ -10,16 +10,16 @@ void main() {
   runApp(const CarscapePreview());
 }
 
-/// Standalone entry after theme selection. The team's home/entry feature can
-/// push TutorialScreen directly without using this preview application.
+/// App entry. Starts on the home screen, which pushes the tutorial and other
+/// features. The tutorial keeps its own dark theme from [tutorialTheme].
 class CarscapePreview extends StatelessWidget {
   const CarscapePreview({super.key});
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'Carscape · 얼어붙은 밤',
+    title: 'Carscape',
     debugShowCheckedModeBanner: false,
     theme: tutorialTheme(),
-    home: const TutorialScreen(),
+    home: const HomeScreen(),
   );
 }
