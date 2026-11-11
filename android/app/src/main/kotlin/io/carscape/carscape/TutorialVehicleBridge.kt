@@ -7,7 +7,6 @@ import android.util.Log
 import ai.pleos.playground.vehicle.Vehicle
 import ai.pleos.playground.vehicle.api.model.area.SeatArea
 import ai.pleos.playground.vehicle.api.model.area.WindowArea
-import ai.pleos.playground.vehicle.api.model.area.DoorArea
 import ai.pleos.playground.vehicle.api.model.capability.AccessType
 import ai.pleos.playground.vehicle.api.model.capability.AreaBounds
 import ai.pleos.playground.vehicle.api.model.capability.CapabilityConfig
@@ -374,10 +373,14 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
         val door = sdk.getDoor()
         door.checkDoorPositionCapabilities(onComplete = { config, areas -> main.post {
             if (!active(session)) return@post
-            val supported = areas.filter { (area, bounds) -> readable(config) && area.values.size == 1 && bounds.maxValue > bounds.minValue }
-            capabilities["doors"] = supported.keys.map { it.values.single().name }
-            val required = puzzleSeats.map { it.name }.toSet() + "REAR"
-            if (!supported.keys.map { it.values.single().name }.containsAll(required)) issue("doors", "네 문과 트렁크의 열림 상태를 모두 읽을 수 없습니다")
+            val required = puzzleSeats.map { it.name }.toSet() + DoorValue.REAR.name
+            val supported = areas.filter { (area, bounds) ->
+                readable(config) && area.values.size == 1 &&
+                    area.values.single() != DoorValue.HOOD && bounds.maxValue > bounds.minValue
+            }
+            val supportedIds = supported.keys.map { it.values.single().name }
+            capabilities["doors"] = supportedIds
+            if (!supportedIds.containsAll(required)) issue("doors", "네 문과 뒷 트렁크의 열림 상태를 모두 읽을 수 없습니다")
             supported.forEach { (area, bounds) ->
                 val id = area.values.single().name
                 val output: (Any?) -> Unit = { raw ->

@@ -154,25 +154,26 @@ void main() {
     expect(c.stage, TutorialStage.escape);
   });
   test(
-    'doors and trunk chill, block completion, recover; cold comment once',
+    'cabin openings clear gas immediately, chill, and prevent completion',
     () {
       final c = controller();
       addTearDown(c.dispose);
       toVentilation(c);
-      for (final seat in CarSeat.values) {
-        window(c, seat, 20);
-      }
       c.receive(
         const TutorialVehicleInput(VehicleInputKind.door, 1, areaId: 'REAR'),
       );
+      expect(c.gasLevel, 0);
       runFor(c, 5);
-      expect(c.coldLoss, 14);
+      expect(c.cabinTemperature, 10);
+      expect(c.gasLevel, 0);
       expect(c.frost, greaterThan(.3));
       expect(c.ambientRevision, 1);
       expect(c.stage, TutorialStage.ventilation);
       c.receive(
         const TutorialVehicleInput(VehicleInputKind.door, 0, areaId: 'REAR'),
       );
+      runFor(c, 5);
+      expect(c.gasLevel, 100);
       c.receive(
         const TutorialVehicleInput(
           VehicleInputKind.door,
@@ -180,7 +181,18 @@ void main() {
           areaId: 'ROW_1_LEFT',
         ),
       );
+      expect(c.gasLevel, 0);
+      runFor(c, 2);
+      expect(c.cabinTemperature, 10);
+      expect(c.stage, TutorialStage.ventilation);
       expect(c.ambientRevision, 1);
+      for (final seat in CarSeat.values) {
+        window(c, seat, 20);
+      }
+      runFor(c, 5);
+      expect(c.gasLevel, 0);
+      expect(c.cabinTemperature, 6);
+      expect(c.stage, TutorialStage.ventilation);
       c.receive(
         const TutorialVehicleInput(
           VehicleInputKind.door,
