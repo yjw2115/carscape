@@ -10,9 +10,9 @@
 
 | 담당 | 영역 | 주요 폴더 |
 |---|---|---|
-| 윤종욱 | 게임 진입(모드 선택) + 차량 점검 흐름, 게임 종료 화면 연결 | `lib/features/entry/` |
-| 문성훈 | 스토리 진행: 튜토리얼·본편 시나리오의 챕터 진행, 나레이션·대사, 퍼즐 진행 흐름 | `lib/features/tutorial/`, `lib/features/case01/` |
-| 하승현 | 그 외 작업 영역 전반 (공통 UI·배지·설정 등 위 두 영역에 속하지 않는 부분) | `lib/features/common/` 등 |
+| 윤종욱 | 차량 점검 흐름, 튜토리얼 탭(조작법 익히기), 기록·순위, 설정, 앱 연결(`lib/app.dart`) | `lib/features/entry/`, `guide/`, `records/`, `settings/` |
+| 문성훈 | 스토리 진행: 첫 번째 스토리 "얼어붙은 밤"(폴더 이름은 `tutorial/`로 유지)·본편 시나리오의 챕터 진행, 나레이션·대사, 퍼즐 진행 흐름 | `lib/features/tutorial/`, `lib/features/case01/` |
+| 하승현 | 홈 화면·공통 UI·배지 등 위 영역에 속하지 않는 부분 | `lib/features/home/`, `lib/features/common/` 등 |
 
 - 작업을 시작하면 **누구의 작업인지 먼저 확인**한다(`git config user.name` 또는 사용자에게 질문). 다른 사람 담당 폴더는 요청 없이 수정하지 않는다.
 - 여러 영역이 같이 쓰는 코드(`lib/core/`, `lib/vehicle/`, 테마, 라우팅)는 변경 내용을 PR 설명에 명확히 적고, 장치 ID·점검 결과 상태 같은 공용 규칙은 바꾸기 전에 팀과 합의한다.
@@ -26,7 +26,7 @@
 - 에뮬레이터: Pleos Connect AVD (Cold boot 필수, RAM 4GB). 팀원 노트북 사양(내장 그래픽 등)에 따라 느릴 수 있음 → **가짜 차량 서비스로 Windows/크롬에서 먼저 개발**한다.
 
 ## 반드시 지킬 설계 규칙
-1. **화면 크기: 960×600 (가로)**. 플레오스 화면 왼쪽 1/3은 계기판이라 앱은 오른쪽 2/3만 쓴다(정확한 값은 에뮬레이터에서 확인 후 조정). 세로·멀티윈도우 대응을 위해 고정 좌표 대신 너비 기준 반응형으로 만든다.
+1. **화면 크기: 앱 영역 1682×1210 (가로)**. Pleos Connect AVD(2560×1440)에서 왼쪽 주행 화면을 뺀 오른쪽 영역을 잰 값이다(`homeReferenceSize`). 홈과 홈에서 여는 페이지(`lib/core/rail_page.dart`)는 이 기준에서 비율 `s`로 크기를 정한다. 고정 좌표 대신 비율·너비 기준으로 만든다.
 2. **누르는 버튼은 화면 왼쪽 아래**(운전석 쪽). 보는 정보는 가운데·오른쪽.
 3. **P단에서만 플레이**. 기어가 P가 아니면 즉시 일시정지 화면, 타이머도 정지.
 4. **차량 제어는 조명 단계의 독서등 OFF 초기화로 제한한다.** 플레이어가 장치를 조작하고 앱은 상태를 읽는다. 사용자가 승인한 예외는 조명 진입/순서 오류 시 네 독서등을 끄는 기능뿐이다. 액셀 사용 금지. 마지막 단계는 와이퍼와 휠 우회전으로 완료한다.
@@ -34,10 +34,10 @@
 6. 글자·터치 영역은 줄이지 않는다(터치 44px 이상). 다크 테마.
 7. 텍스트는 한국어. 나레이션 대사는 노트 버튼으로 다시 듣기 + 자막 표시.
 
-## 디자인 토큰 (시안 기준)
-- 배경 `#0B0B0E`, 패널 `#15161B`, 테두리 `#2A2D35`, 본문 `#ECEAE4`, 보조 `#A9A69E`
-- 앱 강조(호박) `#E8A33D`, 튜토리얼(얼음) `#8FD3F4`, 전원/따뜻함 `#F2A65A`, 성공 `#9BE0B8`, 경고 `#E07A6A`, 금 배지 `#E8C26A`
-- 글꼴: 제목 Noto Serif KR(900), 본문 Noto Sans KR, 숫자·라벨 IBM Plex Mono
+## 디자인 토큰
+- 홈 디자인(하승현) 기준: 현대 CI 색과 라이트/다크 팔레트는 `lib/features/home/presentation/home_palette.dart`(`HomePalette`, `homeTheme`), 글꼴은 Pretendard.
+- 홈에서 여는 페이지(튜토리얼·기록·설정·차량 점검)는 `lib/core/rail_page.dart`(`RailPage`, `RailAction`, `RailCard`)로 같은 모양을 쓴다: 왼쪽 버튼 줄(운전석 쪽) + 오른쪽 내용.
+- 튜토리얼 스토리 "얼어붙은 밤"은 자체 테마(`tutorial_style.dart`)를 쓴다.
 
 ## 진입 + 차량 점검 명세 (담당: 윤종욱, 시안 E1~E5)
 흐름: 모드 선택(E1)에서 게임은 바로 시작한다. 차량 점검은 홈의 "차량 점검" 버튼으로 따로 연다(`openVehicleCheck`): 점검 안내 → 자동 점검 → 직접 점검 5개(+재시도 창) → 점검 결과 → "완료" 시 연 화면으로 복귀. 점검 전이면 모든 장치를 쓸 수 있다고 본다(`GameSession.canUse`).
@@ -53,9 +53,10 @@
 lib/
   core/ (theme, routing, game_session 상태)
   vehicle/ (vehicle_service.dart 인터페이스, fake_vehicle_service.dart, pleos_vehicle_service.dart, device_catalog.dart)
-  features/entry/ (mode_select, check_intro, check_run, check_retry, check_result, check_planner, check_detector)
-  features/tutorial/  features/case01/  ← 문성훈
-  features/common/   ← 하승현
+  app.dart (홈 버튼·테마 카드 → 각 페이지 연결)
+  features/entry/ (차량 점검 E2~E5)  features/guide/ (튜토리얼 탭)  features/records/  features/settings/  ← 윤종욱
+  features/tutorial/ (첫 번째 스토리 "얼어붙은 밤")  features/case01/  ← 문성훈
+  features/home/  features/common/   ← 하승현
 android/app/src/main/kotlin/.../VehicleBridge.kt
 ```
 

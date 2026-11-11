@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../core/game_session.dart';
-import '../../core/theme.dart';
-import '../../vehicle/device_catalog.dart';
+import '../../core/rail_page.dart';
+import '../home/presentation/home_palette.dart';
 import 'check_controller.dart';
 import 'check_intro_screen.dart';
 import 'check_run_screen.dart';
-import 'entry_layout.dart';
 
 /// E5 점검 결과. Never says which puzzle uses which device.
 class CheckResultScreen extends StatelessWidget {
@@ -20,42 +19,27 @@ class CheckResultScreen extends StatelessWidget {
           (s) => s == DeviceStatus.unsupported || s == DeviceStatus.fallback,
         )
         .length;
-    return EntryLayout(
-      vehicle: c.vehicle,
-      background: const RadialGradient(
-        center: Alignment(-0.5, -0.4),
-        radius: 1.2,
-        colors: [Color(0xFF12201A), AppColors.background],
-        stops: [0, 0.6],
-      ),
-      content: [
-        const CircleAvatar(
-          radius: 32,
-          backgroundColor: Color(0xFF13241B),
-          child: Icon(Icons.check_rounded, size: 32, color: AppColors.success),
-        ),
-        Text(
-          'CHECK COMPLETE',
-          style: AppText.label.copyWith(color: AppColors.success),
-        ),
-        const Text('점검이 끝났어요\n플레이할 준비 완료!', style: AppText.title),
-        if (missing > 0)
-          Callout(
-            '이 차에서 쓸 수 없는 장치가 $missing개 있어요. 필요한 순간에는 화면 터치로 대신 진행돼요.',
-            warn: true,
-          ),
-      ],
-      actions: [
-        FilledButton.icon(
+    return RailPage(
+      title: '점검이 끝났어요',
+      backLabel: null,
+      rail: (s, p) => [
+        RailAction(
           key: const Key('checkDone'),
-          onPressed: () => Navigator.of(context)
+          s: s,
+          palette: p,
+          primary: true,
+          icon: Icons.check_rounded,
+          label: '완료',
+          onTap: () => Navigator.of(context)
             ..popUntil(ModalRoute.withName(vehicleCheckRoute))
             ..pop(),
-          icon: const Icon(Icons.check_rounded),
-          label: const Text('완료'),
         ),
-        OutlinedButton(
-          onPressed: () {
+        RailAction(
+          s: s,
+          palette: p,
+          icon: Icons.replay_rounded,
+          label: '다시 점검',
+          onTap: () {
             c.startDirectCheck();
             Navigator.of(context).pushReplacement(
               MaterialPageRoute<void>(
@@ -63,116 +47,175 @@ class CheckResultScreen extends StatelessWidget {
               ),
             );
           },
-          child: const Text('다시 점검'),
         ),
       ],
-      side: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _Stat('자동 점검', c.supportedCount, c.autoTotal, '지원되는 장치'),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _Stat('직접 점검', c.verifiedCount, c.plan.length, '정상 반응'),
+      overlay: (s, _) => fakeVehicleCorner(c.vehicle, s),
+      body: (s, p) {
+        final sub = TextStyle(fontSize: 26 * s, color: p.description);
+        return ListView(
+          children: [
+            Text('플레이할 준비가 됐어요.', style: sub.copyWith(fontSize: 30 * s)),
+            if (missing > 0) ...[
+              SizedBox(height: 24 * s),
+              Container(
+                padding: EdgeInsets.all(28 * s),
+                decoration: BoxDecoration(
+                  color: p.warning,
+                  borderRadius: BorderRadius.circular(22 * s),
+                  border: Border.all(color: p.warningBorder, width: 2 * s),
+                ),
+                child: Text(
+                  '이 차에서 쓸 수 없는 장치가 $missing개 있어요. 필요한 순간에는 화면 터치로 대신 진행돼요.',
+                  style: TextStyle(fontSize: 28 * s, color: p.onWarning),
+                ),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          Panel(
-            child: Column(
+            SizedBox(height: 24 * s),
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '직접 점검한 항목',
-                  style: TextStyle(fontSize: 13, color: AppColors.muted),
+                Expanded(
+                  child: _Stat(
+                    s: s,
+                    palette: p,
+                    title: '자동 점검',
+                    value: c.supportedCount,
+                    total: c.autoTotal,
+                    caption: '지원되는 장치',
+                  ),
                 ),
-                for (final id in c.plan) ...[
-                  const SizedBox(height: 8),
-                  _ItemLine(id, c),
-                ],
+                SizedBox(width: 24 * s),
+                Expanded(
+                  child: _Stat(
+                    s: s,
+                    palette: p,
+                    title: '직접 점검',
+                    value: c.verifiedCount,
+                    total: c.plan.length,
+                    caption: '정상 반응',
+                  ),
+                ),
+                SizedBox(width: 24 * s),
+                Expanded(
+                  flex: 2,
+                  child: RailCard(
+                    s: s,
+                    palette: p,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('직접 점검한 항목', style: sub),
+                        for (final id in c.plan) ...[
+                          SizedBox(height: 14 * s),
+                          _itemLine(
+                            s,
+                            p,
+                            id.label,
+                            c.session.devices[id],
+                            c.skipped.contains(id),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
-          ),
-        ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _itemLine(
+    double s,
+    HomePalette p,
+    String label,
+    DeviceStatus? status,
+    bool skipped,
+  ) {
+    final (icon, color, note) = switch (status) {
+      DeviceStatus.verified => (
+        Icons.check_rounded,
+        HyundaiColors.activeBlue,
+        '',
       ),
+      DeviceStatus.fallback => (
+        Icons.touch_app_outlined,
+        p.onWarning,
+        ' · 화면 터치로',
+      ),
+      _ => (Icons.remove_rounded, p.description, skipped ? ' · 건너뜀' : ''),
+    };
+    return Row(
+      children: [
+        Icon(icon, size: 36 * s, color: color),
+        SizedBox(width: 16 * s),
+        Text(
+          '$label$note',
+          style: TextStyle(
+            fontSize: 28 * s,
+            color: note.isEmpty ? p.title : p.description,
+          ),
+        ),
+      ],
     );
   }
 }
 
 class _Stat extends StatelessWidget {
-  const _Stat(this.title, this.value, this.total, this.caption);
+  const _Stat({
+    required this.s,
+    required this.palette,
+    required this.title,
+    required this.value,
+    required this.total,
+    required this.caption,
+  });
+
+  final double s;
+  final HomePalette palette;
   final String title;
   final int value;
   final int total;
   final String caption;
 
   @override
-  Widget build(BuildContext context) => Panel(
-    padding: const EdgeInsets.all(16),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 13, color: AppColors.muted),
-        ),
-        Text.rich(
-          TextSpan(
-            text: '$value',
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 28,
-              fontWeight: FontWeight.w600,
-            ),
-            children: [
-              TextSpan(
-                text: ' / $total',
-                style: const TextStyle(fontSize: 16, color: AppColors.muted),
-              ),
-            ],
-          ),
-        ),
-        Text(
-          caption,
-          style: const TextStyle(fontSize: 12, color: AppColors.muted),
-        ),
-      ],
-    ),
-  );
-}
-
-class _ItemLine extends StatelessWidget {
-  const _ItemLine(this.id, this.c);
-  final DeviceId id;
-  final CheckController c;
-
-  @override
   Widget build(BuildContext context) {
-    final (icon, color, note) = switch (c.session.devices[id]) {
-      DeviceStatus.verified => (Icons.check_rounded, AppColors.success, ''),
-      DeviceStatus.fallback => (
-        Icons.touch_app_outlined,
-        AppColors.warning,
-        ' · 화면 터치로',
-      ),
-      _ => (Icons.remove_rounded, AppColors.amber, ' · 건너뜀'),
-    };
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: color),
-        const SizedBox(width: 10),
-        Text(
-          '${id.label}$note',
-          style: TextStyle(
-            fontSize: 15,
-            color: note.isEmpty ? AppColors.text : AppColors.muted,
+    final p = palette;
+    return RailCard(
+      s: s,
+      palette: p,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(fontSize: 26 * s, color: p.description),
           ),
-        ),
-      ],
+          SizedBox(height: 8 * s),
+          Text.rich(
+            TextSpan(
+              text: '$value',
+              style: TextStyle(
+                fontSize: 64 * s,
+                fontWeight: FontWeight.w600,
+                color: p.title,
+              ),
+              children: [
+                TextSpan(
+                  text: ' / $total',
+                  style: TextStyle(fontSize: 32 * s, color: p.description),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            caption,
+            style: TextStyle(fontSize: 22 * s, color: p.description),
+          ),
+        ],
+      ),
     );
   }
 }
