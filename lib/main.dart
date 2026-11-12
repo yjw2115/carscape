@@ -9,6 +9,7 @@ import 'features/records/record_store.dart';
 import 'features/settings/app_settings.dart';
 import 'vehicle/device_catalog.dart';
 import 'vehicle/fake_vehicle_service.dart';
+import 'vehicle/pleos_vehicle_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,9 +17,11 @@ Future<void> main() async {
   final prefs = await SharedPreferences.getInstance();
   runApp(
     CarscapeApp(
-      // ponytail: fake car until the Pleos Kotlin bridge lands; swap here.
-      // One decoy is unsupported so the result screen's fallback notice shows.
-      vehicle: FakeVehicleService(unsupported: {DeviceId.steeringHeater}),
+      // Android = Pleos SDK (AVD: Virtual Console). Windows/Chrome = fake car,
+      // with one decoy unsupported so the result screen's fallback notice shows.
+      vehicle: !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+          ? PleosVehicleService()
+          : FakeVehicleService(unsupported: {DeviceId.steeringHeater}),
       session: GameSession(),
       records: RecordStore(prefs),
       settings: AppSettings(prefs),
