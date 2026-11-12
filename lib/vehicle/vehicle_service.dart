@@ -9,7 +9,7 @@ class VehicleReading {
 }
 
 /// Read-only access to the car. The app never controls the vehicle.
-/// Implementations: FakeVehicleService (Windows/Chrome), Pleos bridge (later).
+/// Implementations: FakeVehicleService (Windows/Chrome), PleosVehicleService.
 abstract interface class VehicleService {
   /// `check…Capabilities` on Pleos.
   Future<bool> isSupported(DeviceId id);
