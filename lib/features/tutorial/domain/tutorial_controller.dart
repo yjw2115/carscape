@@ -24,6 +24,8 @@ class TutorialController extends ChangeNotifier {
   final Stopwatch _clock = Stopwatch();
   Duration _lastClock = Duration.zero;
   TutorialStage stage = TutorialStage.intro;
+  TutorialStage? _pendingChapter;
+  TutorialStage? get pendingChapter => _pendingChapter;
   int dialogueIndex = 0, dialogueRevision = 0;
   bool dialogueActive = false, manualPause = false, appInBackground = false;
   bool parked = true,
@@ -98,7 +100,16 @@ class TutorialController extends ChangeNotifier {
       hasSensorProblem;
   bool get playing =>
       stage != TutorialStage.intro && stage != TutorialStage.result;
-  bool get acceptsInput => playing && !paused && !dialogueActive;
+  bool get _canAct =>
+      playing &&
+      !appInBackground &&
+      parked &&
+      connected &&
+      !hasSensorProblem &&
+      !dialogueActive &&
+      pendingChapter == null;
+  bool get acceptsInput => _canAct && !manualPause;
+  bool get canOpenHint => _canAct && canHint;
   bool get readyToStart =>
       !liveVehicleMode || (connected && parked && vehicleConfigured);
   List<DialogueLine> get dialogue => TutorialScript.dialogue[stage] ?? const [];
@@ -158,6 +169,7 @@ class TutorialController extends ChangeNotifier {
   }
 
   void _enter(TutorialStage next) {
+    _pendingChapter = null;
     stage = next;
     if (!visited.contains(next)) visited.add(next);
     feedback = '';
@@ -191,6 +203,21 @@ class TutorialController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _completeChapter(TutorialStage next) {
+    if (!options.waitForChapterClear) {
+      _enter(next);
+      return;
+    }
+    _pendingChapter = next;
+    notifyListeners();
+  }
+
+  void finishChapterClear(TutorialStage next) {
+    if (paused || _pendingChapter != next) return;
+    _lastClock = _clock.elapsed;
+    _enter(next);
+  }
+
   void advanceDialogue() {
     if (paused || !dialogueActive) return;
     if (dialogueIndex < dialogue.length - 1) {
@@ -215,7 +242,7 @@ class TutorialController extends ChangeNotifier {
     final now = _clock.elapsed;
     final change = delta ?? now - _lastClock;
     _lastClock = now;
-    if (!playing || paused) return;
+    if (!playing || paused || pendingChapter != null) return;
     elapsed += change;
     if (dialogueActive) {
       notifyListeners();
@@ -239,7 +266,7 @@ class TutorialController extends ChangeNotifier {
           gasLevel <= .01 &&
           cabinTemperature >= minimumTemperature - .01) {
         _ventilationStable += seconds;
-        if (_ventilationStable >= 1.5) _enter(TutorialStage.escape);
+        if (_ventilationStable >= 1.5) _completeChapter(TutorialStage.escape);
       } else {
         _ventilationStable = 0;
       }
@@ -274,8 +301,8 @@ class TutorialController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void useHint() {
-    if (!acceptsInput || !canHint) return;
+  void useHint({bool fromPausedMenu = false}) {
+    if (!canOpenHint || (manualPause && !fromPausedMenu)) return;
     _hintLevels[stage] = hintLevel + 1;
     hintsUsed++;
     idleTime = Duration.zero;
@@ -292,11 +319,10 @@ class TutorialController extends ChangeNotifier {
     if (stage == TutorialStage.glovebox &&
         heaterOn &&
         (!gloveboxSensorAvailable || gloveboxOpen)) {
-      _enter(TutorialStage.ventilation);
+      _completeChapter(TutorialStage.ventilation);
     }
     if (stage == TutorialStage.ventilation) {
       if (_cabinOpen) {
-        gasLevel = 0;
         _ventilationStable = 0;
       }
       if (coldLoss > 4.001 && !coldCommentPlayed) {
@@ -446,7 +472,7 @@ class TutorialController extends ChangeNotifier {
               lights[seat] = true;
               powerCount++;
               feedback = '${seat.label} 연결!';
-              if (powerCount == 4) _enter(TutorialStage.glovebox);
+              if (powerCount == 4) _completeChapter(TutorialStage.glovebox);
             }
           }
         }

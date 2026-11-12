@@ -6,12 +6,14 @@ import io.flutter.embedding.engine.FlutterEngine
 class MainActivity : FlutterActivity() {
     private var tutorialVehicle: TutorialVehicleBridge? = null
     private var vehicle: VehicleBridge? = null
+    private var narration: PleosNarrationBridge? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
         tutorialVehicle = TutorialVehicleBridge(applicationContext, messenger)
         vehicle = VehicleBridge(applicationContext, messenger)
+        narration = PleosNarrationBridge(applicationContext, messenger)
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
@@ -19,6 +21,8 @@ class MainActivity : FlutterActivity() {
         tutorialVehicle = null
         vehicle?.dispose()
         vehicle = null
+        narration?.dispose()
+        narration = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 }

@@ -77,9 +77,11 @@ class TutorialOptions {
   const TutorialOptions({
     this.gloveboxSensorAvailable = true,
     this.enableClock = true,
+    this.waitForChapterClear = false,
   });
   final bool gloveboxSensorAvailable;
   final bool enableClock;
+  final bool waitForChapterClear;
 }
 
 class TutorialResult {

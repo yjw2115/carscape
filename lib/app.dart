@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'core/game_audio.dart';
 import 'core/game_session.dart';
 import 'features/badges/badge_pages.dart';
 import 'features/badges/progress.dart';
@@ -20,7 +23,7 @@ import 'features/tutorial/presentation/tutorial_style.dart';
 import 'vehicle/vehicle_service.dart';
 
 /// Wires the home rail and theme cards to their pages.
-class CarscapeApp extends StatelessWidget {
+class CarscapeApp extends StatefulWidget {
   const CarscapeApp({
     super.key,
     required this.vehicle,
@@ -35,6 +38,37 @@ class CarscapeApp extends StatelessWidget {
   final RecordStore records;
   final AppSettings settings;
   final Progress progress;
+
+  @override
+  State<CarscapeApp> createState() => _CarscapeAppState();
+}
+
+class _CarscapeAppState extends State<CarscapeApp> with WidgetsBindingObserver {
+  late final _audio = GameAudio(widget.settings);
+  VehicleService get vehicle => widget.vehicle;
+  GameSession get session => widget.session;
+  RecordStore get records => widget.records;
+  AppSettings get settings => widget.settings;
+  Progress get progress => widget.progress;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _audio.refreshMusic();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _audio.setActive(state == AppLifecycleState.resumed);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_audio.dispose());
+    super.dispose();
+  }
 
   Future<T?> _push<T>(BuildContext context, WidgetBuilder builder) =>
       Navigator.of(context).push<T>(MaterialPageRoute<T>(builder: builder));
@@ -70,7 +104,8 @@ class CarscapeApp extends StatelessWidget {
       (c) => Theme(
         data: tutorialTheme(),
         child: TutorialScreen(
-          narrationPlayer: FrozenNightNarrationPlayer(
+          audio: _audio,
+          narrationPlayer: createFrozenNightNarration(
             volume: settings.narrationVolume,
           ),
           onFinished: (r) => Navigator.of(c).pop(r),
@@ -115,6 +150,13 @@ class CarscapeApp extends StatelessWidget {
     debugShowCheckedModeBanner: false,
     theme: homeTheme(Brightness.light),
     darkTheme: homeTheme(Brightness.dark),
+    builder: (_, child) => kIsWeb
+        ? Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) => _audio.refreshMusic(),
+            child: child,
+          )
+        : child!,
     home: HomeScreen(
       openVehicleCheck: _check,
       onTutorial: _tutorial,

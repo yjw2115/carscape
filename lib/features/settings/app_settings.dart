@@ -10,7 +10,7 @@ class AppSettings extends ChangeNotifier {
   double get narrationVolume => _prefs.getDouble('narrationVolume') ?? 1;
   bool get bgmOn => _prefs.getBool('bgmOn') ?? true;
 
-  /// 0–1. For background music once stories ship with it.
+  /// 0–1. Shared by the home and story music players.
   double get bgmVolume => _prefs.getDouble('bgmVolume') ?? 0.6;
 
   set narrationVolume(double v) =>

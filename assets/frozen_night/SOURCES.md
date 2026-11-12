@@ -26,6 +26,18 @@ OpenAI 이미지 생성 도구로 제작했습니다. 첨부 사진은 앞유리
 
 Create a new wide 16:9 production game texture for Carscape, photographed from inside a car through its windshield, almost entirely blocked by fresh accumulated SNOW on the exterior glass. Use the supplied final reference photo in the request only as visual inspiration for the granular powder (do not recreate its exterior angle, black car frame or wipers). Fill the canvas completely with snowy buildup: matte white and pale neutral blue-gray loose fine snow grains, fluffy clumpy small wind-packed drifts softly banked along the bottom, subtly uneven density with mottled dark graphite-blue patches in the upper/middle field that remain opaque with snow particles. Photorealistic tactile snow, cool evening light, distinguish clearly from the crystal frost in preceding scene. Absolutely no fern-shaped ice crystals, crystal branches, frost flowers, frozen sheets, icicles, icelike blue shards, glass cracks, wiper tracks, wipers, borders, cabin, scenery, outlines, text or logos. No holes or transparent regions. Top to bottom snow covering the full width. We composite over the existing road and wipe this full-bleed texture in code.
 
+### `cabin_gas.png`
+
+OpenAI 이미지 생성 도구로 제작한 반투명 연기입니다. 첨부 사진의 회색 연기 밀도와 흐름을 참고했습니다.
+
+Generate a wide 16:9 production texture for a dark cinematic escape room game. Isolated photorealistic billowing wisps of pale warm-gray smoke, with a slightly tawny tint and deep soft folds, suspended on a genuinely fully transparent alpha background. The smoke forms several soft irregular cloudy billows across the canvas with pronounced wisps and varying density, asymmetrically concentrated around the left and bottom edges but some streams drifting across center. Atmosphere of smoke filling a dark car cabin, completely obscured underlying scene is NOT part of the image: only semitransparent volumetric aerosol. Low-saturation beige gray, no green, no flame, no sparks, no text, no logos, no objects, no black colored background. Naturally tapered feathered edges and many transparent openings in between. Artwork will be composited behind game gauges, create fine granular detail and volumetric shadows while maintaining opacity falloff.
+
 ## 한국어 대사
 
+Pleos에서 나레이션 음량이 100%인 경우 TextToSpeech SDK의 한국어 온디바이스 합성을 우선 사용합니다. 기기가 TTS를 지원하지 않거나 앱에서 음성 음량을 줄인 경우 아래의 내장 음원으로 재생합니다. [Pleos TextToSpeech SDK](https://document.pleos.ai/api-reference/connect-sdk-pleos/TextToSpeech/intro)
+
 `voice/`의 WAV 9개는 [Supertonic 3](https://huggingface.co/Supertone/supertonic-3)으로 로컬에서 합성했습니다. 운전석은 M1, 조수석은 F3, 나레이터는 M4 음색입니다. 구절마다 말의 속도, 음높이, 세기와 쉼을 조절했습니다. 정전 장면의 다급한 질문, 가스 발견 순간의 놀람, 도착 후의 안도가 서로 다르게 들리도록 편집했습니다. 원본 대사는 `lib/features/tutorial/domain/tutorial_script.dart`에 있습니다. [모델 이용 조건](https://huggingface.co/Supertone/supertonic-3/blob/main/LICENSE)
+
+## 배경음악과 클리어 효과음
+
+`assets/audio/`의 배경음악은 제공받은 `carscape-home-loop.wav`와 `carscape-frozen-night-loop.wav`입니다. 곡의 시작과 끝을 짧게 페이드하고 끝에 5초 무음을 추가했습니다. 클리어 효과음은 제공받은 `carscape-chapter-clear-mystery-resolve-temp.wav`를 사용합니다.

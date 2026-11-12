@@ -142,9 +142,6 @@ void main() {
       expect(find.text('다들 괜찮아? 어두워서 아무것도 안 보여...'), findsOneWidget);
       expect(c.paused, isTrue);
       expect(voice.spoken.length, greaterThanOrEqualTo(2));
-      await tester.tap(find.text('이야기로 돌아가기'));
-      await tester.pump(const Duration(milliseconds: 250));
-      expect(c.paused, isFalse);
       expect(c.hintsUsed, 0);
       await tap(tester, 'hint');
       await tester.pump(const Duration(milliseconds: 250));
@@ -165,6 +162,10 @@ void main() {
       expect(c.hintsUsed, 2);
       await tester.tap(find.text('해볼게요'));
       await tester.pump(const Duration(milliseconds: 250));
+      expect(c.paused, isTrue);
+      await tester.tap(find.text('이야기로 돌아가기'));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(c.paused, isFalse);
       await tap(tester, 'pause');
       expect(c.paused, isTrue);
       await tap(tester, 'resume');

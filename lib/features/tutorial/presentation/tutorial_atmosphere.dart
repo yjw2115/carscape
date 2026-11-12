@@ -9,6 +9,7 @@ const frozenNightCabin = 'assets/frozen_night/art/cabin.jpg';
 const frozenNightRoad = 'assets/frozen_night/art/road.jpg';
 const _frostAsset = 'assets/frozen_night/art/frost.jpg';
 const _snowAsset = 'assets/frozen_night/art/windshield_snow.jpg';
+const _gasAsset = 'assets/frozen_night/art/cabin_gas.png';
 
 class VentilationDashboard extends StatelessWidget {
   const VentilationDashboard({super.key, required this.controller});
@@ -34,6 +35,21 @@ class VentilationDashboard extends StatelessWidget {
           ),
         ),
       ),
+      if (controller.gasLevel > 0)
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Opacity(
+              opacity: (controller.gasLevel / 100).clamp(0.0, 1.0) * .83,
+              child: Image.asset(
+                _gasAsset,
+                key: const Key('cabin-gas-overlay'),
+                fit: BoxFit.cover,
+                alignment: Alignment(-.24 + controller.gasLevel * .004, .32),
+                excludeFromSemantics: true,
+              ),
+            ),
+          ),
+        ),
       if (controller.frost > .001)
         Positioned.fill(
           child: Opacity(

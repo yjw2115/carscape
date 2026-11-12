@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import '../../../core/game_audio.dart';
 import '../domain/tutorial_controller.dart';
 import '../domain/tutorial_models.dart';
 import '../domain/tutorial_script.dart';
@@ -18,6 +19,7 @@ class TutorialScreen extends StatefulWidget {
     this.narrationPlayer,
     this.inputSource,
     this.onFinished,
+    this.audio,
     this.previewOnly = false,
   });
 
@@ -25,6 +27,7 @@ class TutorialScreen extends StatefulWidget {
   final NarrationPlayer? narrationPlayer;
   final TutorialInputSource? inputSource;
   final ValueChanged<TutorialResult>? onFinished;
+  final GameAudio? audio;
   final bool previewOnly;
 
   @override
@@ -51,6 +54,7 @@ class _TutorialScreenState extends State<TutorialScreen>
   Future<void> _vehicleCommands = Future.value();
   Timer? _ambientTimer;
   bool _ambientCaption = false;
+  Object? _chapterCue;
   static const _testNavigation = bool.fromEnvironment(
     'TUTORIAL_TEST_NAVIGATION',
     defaultValue: true,
@@ -61,7 +65,11 @@ class _TutorialScreenState extends State<TutorialScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    c = widget.controller ?? TutorialController();
+    c =
+        widget.controller ??
+        TutorialController(
+          options: TutorialOptions(waitForChapterClear: widget.audio != null),
+        );
     _ownsController = widget.controller == null;
     _source =
         widget.inputSource ??
@@ -70,7 +78,7 @@ class _TutorialScreenState extends State<TutorialScreen>
                 defaultTargetPlatform == TargetPlatform.android
             ? PleosTutorialInputSource()
             : null);
-    _voice = widget.narrationPlayer ?? FrozenNightNarrationPlayer();
+    _voice = widget.narrationPlayer ?? createFrozenNightNarration();
     c.addListener(_changed);
     if (!_demo) {
       c.enableVehicleMode();
@@ -108,7 +116,11 @@ class _TutorialScreenState extends State<TutorialScreen>
   void _changed() {
     if (!mounted) return;
     setState(() {});
+    widget.audio?.setMusic(
+      c.stage == TutorialStage.intro ? GameMusic.home : GameMusic.frozenNight,
+    );
     _syncVehicle();
+    _syncChapterCue();
     if (_revision != c.dialogueRevision) {
       _revision = c.dialogueRevision;
       unawaited(_playCurrent());
@@ -117,6 +129,32 @@ class _TutorialScreenState extends State<TutorialScreen>
       _ambientRevision = c.ambientRevision;
       unawaited(_playColdComment());
     }
+  }
+
+  void _syncChapterCue() {
+    final next = c.pendingChapter;
+    if (next == null || c.paused) {
+      _cancelChapterCue();
+      return;
+    }
+    if (_chapterCue != null) return;
+    final token = _chapterCue = Object();
+    unawaited(_playChapterCue(next, token));
+  }
+
+  Future<void> _playChapterCue(TutorialStage next, Object token) async {
+    await _voice.stop();
+    if (!mounted || _chapterCue != token) return;
+    await widget.audio?.playChapterClear();
+    if (!mounted || _chapterCue != token) return;
+    _chapterCue = null;
+    c.finishChapterClear(next);
+  }
+
+  void _cancelChapterCue() {
+    if (_chapterCue == null) return;
+    _chapterCue = null;
+    widget.audio?.stopChapterClear();
   }
 
   void _syncVehicle() {
@@ -237,6 +275,8 @@ class _TutorialScreenState extends State<TutorialScreen>
       c.receive(TutorialVehicleInput(kind, value, seat: seat, areaId: areaId));
 
   void _restart() {
+    _cancelChapterCue();
+    widget.audio?.setMusic(GameMusic.home);
     _speechToken++;
     _cancelReading();
     unawaited(_voice.stop());
@@ -249,7 +289,10 @@ class _TutorialScreenState extends State<TutorialScreen>
     _lightReset = -1;
     _lightScope = null;
     c = TutorialController(
-      options: TutorialOptions(gloveboxSensorAvailable: _gloveboxSensor),
+      options: TutorialOptions(
+        gloveboxSensorAvailable: _gloveboxSensor,
+        waitForChapterClear: widget.audio != null,
+      ),
     );
     if (!_demo) {
       c.enableVehicleMode();
@@ -275,8 +318,8 @@ class _TutorialScreenState extends State<TutorialScreen>
 
   Future<void> _notes() async {
     final priorPause = c.manualPause;
-    c.setManualPause(true);
     _notesOpen = true;
+    c.setManualPause(true);
     final stages = c.visited
         .where((stage) => TutorialScript.dialogue.containsKey(stage))
         .toList();
@@ -289,9 +332,9 @@ class _TutorialScreenState extends State<TutorialScreen>
       (context) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.menu_book_rounded, color: TutorialColors.ice),
+            Icon(Icons.help_outline_rounded, color: TutorialColors.ice),
             SizedBox(width: 12),
-            Text('나레이션 노트'),
+            Text('나레이션/힌트'),
           ],
         ),
         content: SizedBox(
@@ -354,7 +397,17 @@ class _TutorialScreenState extends State<TutorialScreen>
         ),
         actionsAlignment: MainAxisAlignment.start,
         actions: [
-          FilledButton(
+          if (TutorialScript.hints.containsKey(c.stage))
+            ListenableBuilder(
+              listenable: c,
+              builder: (context, _) => FilledButton.icon(
+                key: const Key('hint'),
+                onPressed: c.canOpenHint ? _hint : null,
+                icon: const Icon(Icons.lightbulb_outline),
+                label: Text('힌트 ${c.hintLevel}/3'),
+              ),
+            ),
+          OutlinedButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('이야기로 돌아가기'),
           ),
@@ -390,12 +443,13 @@ class _TutorialScreenState extends State<TutorialScreen>
   }
 
   Future<void> _hint() async {
-    if (!c.canHint || !c.acceptsInput) return;
+    if (!_notesOpen || !c.canOpenHint) return;
     final currentStage = c.stage;
     final hint = TutorialScript.hints[currentStage]![c.hintLevel];
+    ++_speechToken;
+    unawaited(_voice.stop());
     var accepted = true;
     if (c.hintsUsed == 0) {
-      c.setManualPause(true);
       accepted =
           await _dialog<bool>(
             (context) => AlertDialog(
@@ -415,13 +469,15 @@ class _TutorialScreenState extends State<TutorialScreen>
             ),
           ) ??
           false;
-      if (!mounted) return;
-      c.setManualPause(false);
     }
-    if (!accepted || c.stage != currentStage || !c.acceptsInput) return;
-    c.useHint();
-    if (c.stage != currentStage) return;
-    c.setManualPause(true);
+    if (!mounted ||
+        !accepted ||
+        !_notesOpen ||
+        c.stage != currentStage ||
+        !c.canOpenHint) {
+      return;
+    }
+    c.useHint(fromPausedMenu: true);
     await _dialog<void>(
       (context) => AlertDialog(
         title: Text('힌트 ${c.hintLevel} / 3'),
@@ -435,12 +491,66 @@ class _TutorialScreenState extends State<TutorialScreen>
         ],
       ),
     );
-    if (mounted) c.setManualPause(false);
+  }
+
+  Future<void> _musicSettings() async {
+    final settings = widget.audio!.settings;
+    final priorPause = c.manualPause;
+    _notesOpen = true;
+    c.setManualPause(true);
+    await _dialog<void>(
+      (context) => AlertDialog(
+        title: const Text('배경음악'),
+        content: SizedBox(
+          width: 400,
+          child: ListenableBuilder(
+            listenable: settings,
+            builder: (context, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('배경음악 켜기'),
+                  value: settings.bgmOn,
+                  onChanged: (value) => settings.bgmOn = value,
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Slider(
+                        key: const Key('story-bgm-volume'),
+                        value: settings.bgmVolume,
+                        divisions: 10,
+                        label: '${(settings.bgmVolume * 100).round()}%',
+                        onChanged: settings.bgmOn
+                            ? (value) => settings.bgmVolume = value
+                            : null,
+                      ),
+                    ),
+                    Text('${(settings.bgmVolume * 100).round()}%'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('닫기'),
+          ),
+        ],
+      ),
+    );
+    _notesOpen = false;
+    if (mounted) c.setManualPause(priorPause);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _cancelChapterCue();
+    widget.audio?.setMusic(GameMusic.home);
     _speechToken++;
     _cancelReading();
     _subscription?.cancel();
@@ -501,6 +611,15 @@ class _TutorialScreenState extends State<TutorialScreen>
                   c.stage != TutorialStage.arrival &&
                   !c.paused)
                 _dialogueOverlay(),
+              if (c.pendingChapter != null && !c.paused)
+                const IgnorePointer(
+                  child: Center(
+                    child: Chip(
+                      avatar: Icon(Icons.check_rounded),
+                      label: Text('단계 완료'),
+                    ),
+                  ),
+                ),
               if (c.paused &&
                   c.playing &&
                   (!_notesOpen || !c.parked || !c.connected))
@@ -1085,18 +1204,21 @@ class _TutorialScreenState extends State<TutorialScreen>
     runSpacing: 6,
     crossAxisAlignment: WrapCrossAlignment.center,
     children: [
-      OutlinedButton.icon(
+      FilledButton.tonalIcon(
         key: const Key('notes'),
-        onPressed: c.visited.isEmpty ? null : _notes,
-        icon: const Icon(Icons.menu_book_outlined, size: 22),
-        label: const Text('나레이션 노트'),
+        onPressed: c.visited.isEmpty || c.pendingChapter != null
+            ? null
+            : _notes,
+        icon: const Icon(Icons.help_outline_rounded, size: 24),
+        label: const Text('나레이션/힌트'),
       ),
-      if (TutorialScript.hints.containsKey(c.stage))
-        OutlinedButton.icon(
-          key: const Key('hint'),
-          onPressed: c.canHint && c.acceptsInput ? _hint : null,
-          icon: const Icon(Icons.lightbulb_outline, size: 22),
-          label: Text('힌트 ${c.hintLevel}/3'),
+      if (widget.audio != null)
+        IconButton(
+          key: const Key('story-bgm-settings'),
+          tooltip: '배경음악 음량',
+          onPressed: c.pendingChapter == null ? _musicSettings : null,
+          icon: const Icon(Icons.music_note_rounded),
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
         ),
       IconButton(
         tooltip: _muted ? '음성 켜기' : '음성 끄기',
@@ -1116,7 +1238,9 @@ class _TutorialScreenState extends State<TutorialScreen>
       IconButton(
         key: const Key('pause'),
         tooltip: '일시정지',
-        onPressed: () => c.setManualPause(true),
+        onPressed: c.pendingChapter == null
+            ? () => c.setManualPause(true)
+            : null,
         icon: const Icon(Icons.pause_rounded),
         constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
       ),
@@ -1214,8 +1338,8 @@ class _TutorialScreenState extends State<TutorialScreen>
                       _dialogueNext(),
                       OutlinedButton.icon(
                         onPressed: _notes,
-                        icon: const Icon(Icons.menu_book_outlined),
-                        label: const Text('노트에서 다시 듣기'),
+                        icon: const Icon(Icons.help_outline_rounded),
+                        label: const Text('나레이션/힌트'),
                       ),
                     ],
                   ),

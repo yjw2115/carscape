@@ -153,55 +153,95 @@ void main() {
     runFor(c, 6);
     expect(c.stage, TutorialStage.escape);
   });
+  test('cabin openings gradually clear gas, chill, and prevent completion', () {
+    final c = controller();
+    addTearDown(c.dispose);
+    toVentilation(c);
+    c.receive(
+      const TutorialVehicleInput(VehicleInputKind.door, 1, areaId: 'REAR'),
+    );
+    expect(c.gasLevel, 100);
+    runFor(c, 1);
+    expect(c.gasLevel, 75);
+    runFor(c, 4);
+    expect(c.cabinTemperature, 10);
+    expect(c.gasLevel, 0);
+    expect(c.frost, greaterThan(.3));
+    expect(c.ambientRevision, 1);
+    expect(c.stage, TutorialStage.ventilation);
+    c.receive(
+      const TutorialVehicleInput(VehicleInputKind.door, 0, areaId: 'REAR'),
+    );
+    runFor(c, 5);
+    expect(c.gasLevel, 100);
+    c.receive(
+      const TutorialVehicleInput(
+        VehicleInputKind.door,
+        1,
+        areaId: 'ROW_1_LEFT',
+      ),
+    );
+    expect(c.gasLevel, 100);
+    runFor(c, 2);
+    expect(c.gasLevel, 50);
+    expect(c.cabinTemperature, 10);
+    expect(c.stage, TutorialStage.ventilation);
+    expect(c.ambientRevision, 1);
+    for (final seat in CarSeat.values) {
+      window(c, seat, 20);
+    }
+    runFor(c, 5);
+    expect(c.gasLevel, 0);
+    expect(c.cabinTemperature, 6);
+    expect(c.stage, TutorialStage.ventilation);
+    c.receive(
+      const TutorialVehicleInput(
+        VehicleInputKind.door,
+        0,
+        areaId: 'ROW_1_LEFT',
+      ),
+    );
+    runFor(c, 7);
+    expect(c.stage, TutorialStage.escape);
+  });
   test(
-    'cabin openings clear gas immediately, chill, and prevent completion',
+    'normal chapter clears wait for the audio cue before the next story',
     () {
-      final c = controller();
-      addTearDown(c.dispose);
-      toVentilation(c);
-      c.receive(
-        const TutorialVehicleInput(VehicleInputKind.door, 1, areaId: 'REAR'),
-      );
-      expect(c.gasLevel, 0);
-      runFor(c, 5);
-      expect(c.cabinTemperature, 10);
-      expect(c.gasLevel, 0);
-      expect(c.frost, greaterThan(.3));
-      expect(c.ambientRevision, 1);
-      expect(c.stage, TutorialStage.ventilation);
-      c.receive(
-        const TutorialVehicleInput(VehicleInputKind.door, 0, areaId: 'REAR'),
-      );
-      runFor(c, 5);
-      expect(c.gasLevel, 100);
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.door,
-          1,
-          areaId: 'ROW_1_LEFT',
+      final c = TutorialController(
+        options: const TutorialOptions(
+          enableClock: false,
+          waitForChapterClear: true,
         ),
       );
-      expect(c.gasLevel, 0);
-      runFor(c, 2);
-      expect(c.cabinTemperature, 10);
-      expect(c.stage, TutorialStage.ventilation);
-      expect(c.ambientRevision, 1);
+      addTearDown(c.dispose);
+      c.start();
+      dialogue(c);
+      for (final seat in CarSeat.values) {
+        light(c, seat, true);
+      }
+      expect(c.pendingChapter, TutorialStage.glovebox);
+      expect(c.stage, TutorialStage.power);
+      expect(c.acceptsInput, isFalse);
+      c.finishChapterClear(TutorialStage.glovebox);
+      expect(c.stage, TutorialStage.glovebox);
+      expect(c.dialogueActive, isTrue);
+      dialogue(c);
+      c.receive(
+        const TutorialVehicleInput(VehicleInputKind.passengerHeater, 1),
+      );
+      c.receive(const TutorialVehicleInput(VehicleInputKind.glovebox, 1));
+      expect(c.pendingChapter, TutorialStage.ventilation);
+      c.finishChapterClear(TutorialStage.ventilation);
+      dialogue(c);
       for (final seat in CarSeat.values) {
         window(c, seat, 20);
       }
-      runFor(c, 5);
-      expect(c.gasLevel, 0);
-      expect(c.cabinTemperature, 6);
+      runFor(c, 6);
+      expect(c.pendingChapter, TutorialStage.escape);
       expect(c.stage, TutorialStage.ventilation);
-      c.receive(
-        const TutorialVehicleInput(
-          VehicleInputKind.door,
-          0,
-          areaId: 'ROW_1_LEFT',
-        ),
-      );
-      runFor(c, 7);
+      c.finishChapterClear(TutorialStage.escape);
       expect(c.stage, TutorialStage.escape);
+      expect(c.dialogueActive, isTrue);
     },
   );
   test('40 percent opening is too cold, correcting to 20 each recovers', () {

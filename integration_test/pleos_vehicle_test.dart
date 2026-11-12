@@ -206,14 +206,16 @@ void main() {
         await capture('carscape-vehicle-gas');
         await put('/vehicle/body', {'trunk': 'true'});
         await until(() => c.doors['REAR'] == true, 'Actual rear trunk sensor');
-        expect(c.gasLevel, 0);
+        expect(c.gasLevel, greaterThan(0));
         await until(() => c.cabinTemperature < 16, 'Rear trunk chills cabin');
+        await until(() => c.gasLevel == 0, 'Rear trunk gradually clears gas');
         expect(c.stage, TutorialStage.ventilation);
         await put('/vehicle/body', {'trunk': 'false'});
         await until(() => c.gasLevel >= 99, 'Gas returns with windows closed');
         await put('/vehicle/body', {'door_fl': 'true'});
         await until(() => c.doors['ROW_1_LEFT'] == true, 'Actual door sensor');
-        expect(c.gasLevel, 0);
+        expect(c.gasLevel, greaterThan(0));
+        await until(() => c.gasLevel == 0, 'Door gradually clears gas');
         expect(c.stage, TutorialStage.ventilation);
         await put('/vehicle/body', {'door_fl': 'false'});
         await put('/vehicle/body', {'window_fl': '100'});
