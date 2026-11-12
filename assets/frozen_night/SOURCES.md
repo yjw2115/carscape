@@ -6,6 +6,10 @@ OpenAI 이미지 생성 도구로 제작한 신규 장면입니다. 첨부 예�
 
 ### `blueprint.jpg`
 
+OpenAI 이미지 생성 도구로 도면의 치수선과 점선을 지웠습니다. 차량, 좌석, 적재 공간의 위치를 유지하고 회로는 앱에서 별도로 그립니다.
+
+Edit prompt: Remove all measurement and dimension markings around the car, including ruler-like side lines, arrowheads, ticks, horizontal bars and the dashed central guide. Fill removed marks with warm ivory paper. Preserve the vehicle's scale, four seat positions and ink details in the original 2:3 framing.
+
 Use case: illustration-story. Game asset for premium automotive escape room. Create a precision orthographic automotive technical blueprint of a fictional modern compact crossover, TOP VIEW only, front pointing up. Portrait canvas 2:3. Perfect bilateral symmetry, vehicle centered, taking 92% of the height and about 67% width. Detailed fine midnight navy and desaturated blue ink on uniform warm ivory #e9e0cd paper. X-ray cutaway show the positions of the front left and front right seats at about 42% down and rear left and rear right seats about 62% down, four defined contoured seats, front windscreen, steering wheel on left, cabin panels and cargo floor at rear (bottom), wheels, lamps, mirrors, seam lines and mechanical hatch detail. Professional industrial design drawing, fine crisp linework, varied stroke weights, technical construction lines and dimension ticks without digits. No labels, text, title, logos, arrows, added diagram wires or circuit overlays. No other viewpoints. No cast shadow. No detached components. We will draw interactive wiring overlay later.
 
 ### `cabin.jpg`
@@ -40,4 +44,4 @@ Pleos에서 나레이션 음량이 100%인 경우 TextToSpeech SDK의 한국어 
 
 ## 배경음악과 클리어 효과음
 
-`assets/audio/`의 배경음악은 제공받은 `carscape-home-loop.wav`와 `carscape-frozen-night-loop.wav`입니다. 곡의 시작과 끝을 짧게 페이드하고 끝에 5초 무음을 추가했습니다. 클리어 효과음은 제공받은 `carscape-chapter-clear-mystery-resolve-temp.wav`를 사용합니다.
+`assets/audio/`의 배경음악은 제공받은 `carscape-home-loop.wav`와 `carscape-frozen-night-loop.wav`입니다. 두 곡 모두 원본의 루프 경계를 사용합니다. 클리어 효과음은 제공받은 `carscape-chapter-clear-mystery-resolve-temp.wav`를 사용합니다.

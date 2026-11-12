@@ -23,6 +23,9 @@ class TestVoice implements NarrationPlayer {
 }
 
 class PendingLightSource implements TutorialInputSource {
+  @override
+  Future<void> prepareStoryClimate() async {}
+
   final stream = StreamController<TutorialVehicleInput>.broadcast();
   final scopes = <bool>[];
   Completer<void>? reset;
@@ -139,6 +142,9 @@ void main() {
       await dialogue(tester, c);
       await tap(tester, 'notes');
       await tester.pump(const Duration(milliseconds: 250));
+      final dialog = tester.getCenter(find.byType(AlertDialog));
+      expect(dialog.dx, closeTo(tester.view.physicalSize.width / 2, 2));
+      expect(dialog.dy, closeTo(tester.view.physicalSize.height / 2, 2));
       expect(find.text('다들 괜찮아? 어두워서 아무것도 안 보여...'), findsOneWidget);
       expect(c.paused, isTrue);
       expect(voice.spoken.length, greaterThanOrEqualTo(2));

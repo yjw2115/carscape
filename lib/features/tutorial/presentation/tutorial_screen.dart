@@ -51,6 +51,7 @@ class _TutorialScreenState extends State<TutorialScreen>
   late bool _ownsController;
   int _lightReset = -1, _ambientRevision = 0;
   bool? _lightScope;
+  bool _climatePrepared = false;
   Future<void> _vehicleCommands = Future.value();
   Timer? _ambientTimer;
   bool _ambientCaption = false;
@@ -161,10 +162,7 @@ class _TutorialScreenState extends State<TutorialScreen>
     if (_demo) return;
     final controller = c;
     final active =
-        c.stage == TutorialStage.power &&
-        c.connected &&
-        c.parked &&
-        !c.appInBackground;
+        c.inLightPuzzle && c.connected && c.parked && !c.appInBackground;
     if (_lightScope != active) {
       _lightScope = active;
       if (!active) {
@@ -176,7 +174,7 @@ class _TutorialScreenState extends State<TutorialScreen>
           if (mounted &&
               identical(c, controller) &&
               _lightScope == true &&
-              c.stage == TutorialStage.power) {
+              c.inLightPuzzle) {
             try {
               await _source!.setLightPuzzleActive(active);
             } catch (_) {
@@ -193,6 +191,14 @@ class _TutorialScreenState extends State<TutorialScreen>
                 );
               }
             }
+            if (mounted &&
+                identical(c, controller) &&
+                c.stage == TutorialStage.blackout &&
+                !_climatePrepared) {
+              _climatePrepared = true;
+              // Models with read-only climate support can still play.
+              unawaited(_source!.prepareStoryClimate().catchError((_) {}));
+            }
           }
         });
       }
@@ -200,9 +206,7 @@ class _TutorialScreenState extends State<TutorialScreen>
     if (active && c.lightsResetting && _lightReset != c.lightResetRevision) {
       final revision = _lightReset = c.lightResetRevision;
       _vehicleCommands = _vehicleCommands.catchError((_) {}).then((_) async {
-        if (!mounted ||
-            !identical(c, controller) ||
-            c.stage != TutorialStage.power) {
+        if (!mounted || !identical(c, controller) || !c.inLightPuzzle) {
           return;
         }
         try {
@@ -308,6 +312,7 @@ class _TutorialScreenState extends State<TutorialScreen>
   }
 
   void _start() {
+    _climatePrepared = false;
     if (_demo &&
         widget.controller == null &&
         c.options.gloveboxSensorAvailable != _gloveboxSensor) {
@@ -330,6 +335,7 @@ class _TutorialScreenState extends State<TutorialScreen>
     if (!mounted) return;
     await _dialog<void>(
       (context) => AlertDialog(
+        alignment: Alignment.center,
         title: const Row(
           children: [
             Icon(Icons.help_outline_rounded, color: TutorialColors.ice),
@@ -453,6 +459,7 @@ class _TutorialScreenState extends State<TutorialScreen>
       accepted =
           await _dialog<bool>(
             (context) => AlertDialog(
+              alignment: Alignment.center,
               title: Text('힌트 ${c.hintLevel + 1} / 3'),
               content: const Text('힌트를 열면 최종 기록에 1분이 더해져요.'),
               actionsAlignment: MainAxisAlignment.start,
@@ -480,6 +487,7 @@ class _TutorialScreenState extends State<TutorialScreen>
     c.useHint(fromPausedMenu: true);
     await _dialog<void>(
       (context) => AlertDialog(
+        alignment: Alignment.center,
         title: Text('힌트 ${c.hintLevel} / 3'),
         content: Text(hint, style: const TextStyle(fontSize: 21, height: 1.7)),
         actionsAlignment: MainAxisAlignment.start,
@@ -916,15 +924,6 @@ class _TutorialScreenState extends State<TutorialScreen>
                   Icons.link_off_rounded,
                   '차량 상태를 읽지 못했어요. 연결을 확인해 주세요.',
                   color: TutorialColors.warning,
-                ),
-              ),
-            if (c.stage == TutorialStage.ventilation)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: _notice(
-                  Icons.warning_amber_rounded,
-                  '차량 장치를 조작할 때 손과 머리 끼임에 주의하세요.',
-                  color: TutorialColors.warm,
                 ),
               ),
             const SizedBox(height: 8),

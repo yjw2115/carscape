@@ -102,11 +102,52 @@ class _Blueprint extends StatelessWidget {
                 connected: controller.powerCount,
               ),
             ),
+            IgnorePointer(
+              child: CustomPaint(painter: _FlashlightShade(drawing)),
+            ),
           ],
         );
       },
     ),
   );
+}
+
+class _FlashlightShade extends CustomPainter {
+  const _FlashlightShade(this.drawing);
+
+  final Rect drawing;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = drawing.center.translate(0, drawing.height * .09);
+    final radiusX = drawing.width * .84;
+    final radiusY = drawing.height * .53;
+    if (radiusX <= 0 || radiusY <= 0) return;
+    final cover = size.longestSide * 2 / math.min(radiusX, radiusY);
+    final shade = const RadialGradient(
+      colors: [
+        Color(0x00070B12),
+        Color(0x00070B12),
+        Color(0x72070B12),
+        Color(0xE9070B12),
+        Color(0xFF070B12),
+      ],
+      stops: [0, .51, .73, .94, 1],
+    ).createShader(const Rect.fromLTWH(-1, -1, 2, 2));
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(-.19);
+    canvas.scale(radiusX, radiusY);
+    canvas.drawRect(
+      Rect.fromLTRB(-cover, -cover, cover, cover),
+      Paint()..shader = shade,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _FlashlightShade oldDelegate) =>
+      drawing != oldDelegate.drawing;
 }
 
 class _CircuitOverlay extends CustomPainter {

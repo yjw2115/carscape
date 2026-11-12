@@ -68,7 +68,6 @@ class GameAudio {
     }
     await player.stop();
     await player.setAudioContext(_mixWithGameAudio());
-    // The PCM files end with five seconds of silence.
     await player.setReleaseMode(ReleaseMode.loop);
     if (_disposed || !_active || track != _requestedMusic || !settings.bgmOn) {
       _playingMusic = null;

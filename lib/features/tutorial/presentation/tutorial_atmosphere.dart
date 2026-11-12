@@ -38,15 +38,9 @@ class VentilationDashboard extends StatelessWidget {
       if (controller.gasLevel > 0)
         Positioned.fill(
           child: IgnorePointer(
-            child: Opacity(
-              opacity: (controller.gasLevel / 100).clamp(0.0, 1.0) * .83,
-              child: Image.asset(
-                _gasAsset,
-                key: const Key('cabin-gas-overlay'),
-                fit: BoxFit.cover,
-                alignment: Alignment(-.24 + controller.gasLevel * .004, .32),
-                excludeFromSemantics: true,
-              ),
+            child: _GasFill(
+              key: const Key('cabin-gas-overlay'),
+              fraction: (controller.gasLevel / 100).clamp(0.0, 1.0),
             ),
           ),
         ),
@@ -107,6 +101,133 @@ class VentilationDashboard extends StatelessWidget {
         },
       ),
     ],
+  );
+}
+
+class _GasFill extends StatelessWidget {
+  const _GasFill({super.key, required this.fraction});
+
+  final double fraction;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final height = constraints.maxHeight;
+      final fill = height * fraction;
+      if (fill <= 0) return const SizedBox.shrink();
+      final feather = math.min(.45, height * .12 / fill);
+      return Align(
+        alignment: Alignment.bottomCenter,
+        child: SizedBox(
+          width: constraints.maxWidth,
+          height: fill,
+          child: ClipRect(
+            child: ShaderMask(
+              blendMode: BlendMode.dstIn,
+              shaderCallback: (rect) => LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withValues(
+                    alpha: ((fraction - .9) * 10).clamp(0.0, 1.0),
+                  ),
+                  Colors.white,
+                  Colors.white,
+                ],
+                stops: [0, feather, 1],
+              ).createShader(rect),
+              child: OverflowBox(
+                alignment: Alignment.bottomCenter,
+                minHeight: height,
+                maxHeight: height,
+                child: const _SmokeDrift(),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _SmokeDrift extends StatefulWidget {
+  const _SmokeDrift();
+
+  @override
+  State<_SmokeDrift> createState() => _SmokeDriftState();
+}
+
+class _SmokeDriftState extends State<_SmokeDrift>
+    with SingleTickerProviderStateMixin {
+  late final _drift = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 17),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _drift.stop();
+    } else if (!_drift.isAnimating) {
+      _drift.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _drift.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final width = constraints.maxWidth;
+      final height = constraints.maxHeight;
+      return RepaintBoundary(
+        child: AnimatedBuilder(
+          animation: _drift,
+          child: Image.asset(
+            _gasAsset,
+            fit: BoxFit.cover,
+            excludeFromSemantics: true,
+          ),
+          builder: (context, smoke) {
+            final phase = _drift.value * math.pi * 2;
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                Opacity(
+                  opacity: .60,
+                  child: Transform.translate(
+                    offset: Offset(
+                      math.sin(phase) * width * .085,
+                      math.cos(phase) * height * .075,
+                    ),
+                    child: Transform.scale(scale: 1.22, child: smoke),
+                  ),
+                ),
+                Opacity(
+                  opacity: .46,
+                  child: Transform.translate(
+                    offset: Offset(
+                      math.cos(phase + .8) * width * .11,
+                      math.sin(phase * 2) * height * .07,
+                    ),
+                    child: Transform.flip(
+                      flipX: true,
+                      flipY: true,
+                      child: Transform.scale(scale: 1.28, child: smoke),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    },
   );
 }
 
