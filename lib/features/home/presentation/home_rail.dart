@@ -9,6 +9,7 @@ class HomeRail extends StatelessWidget {
     required this.palette,
     required this.onTutorial,
     required this.onRecords,
+    required this.onBadges,
     required this.onSettings,
     required this.onVehicleCheck,
     required this.onPrevious,
@@ -19,6 +20,7 @@ class HomeRail extends StatelessWidget {
   final HomePalette palette;
   final VoidCallback onTutorial;
   final VoidCallback onRecords;
+  final VoidCallback onBadges;
   final VoidCallback onSettings;
   final VoidCallback onVehicleCheck;
   final VoidCallback onPrevious;
@@ -64,17 +66,42 @@ class HomeRail extends StatelessWidget {
           _MenuButton(
             s: s,
             palette: p,
-            icon: Icons.settings_outlined,
-            label: '설정',
-            onTap: onSettings,
+            icon: Icons.military_tech_outlined,
+            label: '배지',
+            onTap: onBadges,
           ),
           SizedBox(height: 16 * s),
-          _MenuButton(
-            s: s,
-            palette: p,
-            icon: Icons.directions_car_outlined,
-            label: '차량 점검',
-            onTap: onVehicleCheck,
+          Row(
+            children: [
+              Expanded(
+                child: _MenuButton(
+                  s: s,
+                  palette: p,
+                  icon: Icons.settings_outlined,
+                  label: '설정',
+                  onTap: onSettings,
+                ),
+              ),
+              SizedBox(width: 16 * s),
+              // Re-run the vehicle check (e.g. after a software update).
+              // It also runs on its own before the tutorial.
+              Expanded(
+                child: SizedBox(
+                  height: 176 * s,
+                  child: _RailTile(
+                    s: s,
+                    palette: p,
+                    label: '차량 점검',
+                    onTap: onVehicleCheck,
+                    child: Icon(
+                      Icons.build_outlined,
+                      size: 58 * s,
+                      color: p.onButton,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
           const Spacer(),
           Text(

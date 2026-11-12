@@ -17,6 +17,7 @@ class ThemeCard extends StatelessWidget {
     required this.emphasis,
     required this.parking,
     required this.onStart,
+    this.locked,
   });
 
   final EscapeTheme theme;
@@ -26,6 +27,9 @@ class ThemeCard extends StatelessWidget {
   final double emphasis;
   final ParkingState parking;
   final VoidCallback onStart;
+
+  /// Why the theme can't be played yet, or null when it can.
+  final String? locked;
 
   @override
   Widget build(BuildContext context) {
@@ -109,6 +113,7 @@ class ThemeCard extends StatelessWidget {
                             palette: p,
                             parking: parking,
                             onStart: onStart,
+                            locked: locked,
                           ),
                         ),
                       ),
@@ -162,18 +167,45 @@ class StartArea extends StatelessWidget {
     required this.palette,
     required this.parking,
     required this.onStart,
+    this.locked,
   });
 
   final double s;
   final HomePalette palette;
   final ParkingState parking;
   final VoidCallback onStart;
+  final String? locked;
 
   @override
   Widget build(BuildContext context) {
     final p = palette;
     final radius = BorderRadius.circular(26 * s);
     final height = 130 * s;
+    if (locked != null) {
+      return Container(
+        height: height,
+        decoration: BoxDecoration(color: p.checking, borderRadius: radius),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.lock_outline_rounded,
+              size: 40 * s,
+              color: p.description,
+            ),
+            SizedBox(width: 14 * s),
+            Text(
+              locked!,
+              style: TextStyle(
+                fontSize: 30 * s,
+                fontWeight: FontWeight.w500,
+                color: p.description,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     switch (parking) {
       case ParkingState.parked:
         return Semantics(

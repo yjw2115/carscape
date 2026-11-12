@@ -1,5 +1,5 @@
 /// Illustration drawn at the top of a theme card.
-enum ThemeArt { downpour, parkingLot, missingDriver }
+enum ThemeArt { frozenNight, downpour, parkingLot, missingDriver }
 
 /// A playable escape theme shown on the home carousel.
 class EscapeTheme {
@@ -20,9 +20,20 @@ class EscapeTheme {
   final ThemeArt art;
 }
 
+/// Story id of "얼어붙은 밤", also used as its record key.
+const storyFrozenNight = 'story01';
+
 /// Placeholder catalog taken from the design draft (design/png/06_Main.png).
 /// Replace once the main scenarios are decided.
 const escapeThemes = <EscapeTheme>[
+  // First story: the former tutorial (features/tutorial, 문성훈).
+  EscapeTheme(
+    id: storyFrozenNight,
+    title: '얼어붙은 밤',
+    description: '눈보라 속에 멈춰 버린 차. 완전히 얼어붙기 전에 고치고 탈출해야 한다.',
+    chips: ['약 15분', '2~4인', '실패 없음'],
+    art: ThemeArt.frozenNight,
+  ),
   EscapeTheme(
     id: 'case01',
     title: '시간당 120mm',

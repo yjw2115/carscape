@@ -9,6 +9,10 @@ abstract interface class NarrationPlayer {
 /// Uses the OS/browser Korean voice during the playable preview. This is not
 /// the Pleos TTS SDK. A recorded-voice player can replace this interface later.
 class SystemNarrationPlayer implements NarrationPlayer {
+  SystemNarrationPlayer({this.volume = 1});
+
+  /// 0–1, from the player's settings.
+  final double volume;
   final FlutterTts _tts = FlutterTts();
   Future<bool>? _initialization;
 
@@ -18,6 +22,7 @@ class SystemNarrationPlayer implements NarrationPlayer {
       await _tts.setLanguage('ko-KR');
       await _tts.setSpeechRate(0.46);
       await _tts.setPitch(0.95);
+      await _tts.setVolume(volume);
       final available = await _tts.isLanguageAvailable('ko-KR');
       return available == true || available == 1;
     } catch (_) {

@@ -124,3 +124,13 @@ class HomePalette {
   static HomePalette of(Brightness brightness) =>
       brightness == Brightness.dark ? dark : light;
 }
+
+/// Material theme for the home screen and the pages opened from it.
+ThemeData homeTheme(Brightness brightness) => ThemeData(
+  useMaterial3: true,
+  fontFamily: 'Pretendard',
+  colorScheme: ColorScheme.fromSeed(
+    seedColor: HyundaiColors.blue,
+    brightness: brightness,
+  ),
+);

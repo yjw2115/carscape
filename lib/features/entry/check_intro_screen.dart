@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/game_session.dart';
-import '../../core/theme.dart';
+import '../../core/rail_page.dart';
+import '../../vehicle/fake_vehicle_panel.dart';
 import '../../vehicle/vehicle_service.dart';
+import '../home/presentation/home_palette.dart';
 import 'check_controller.dart';
 import 'check_run_screen.dart';
-import 'entry_layout.dart';
 
 const vehicleCheckRoute = 'vehicle-check';
 
@@ -23,6 +24,11 @@ Future<void> openVehicleCheck(
     ),
   );
 }
+
+/// Dev-only "가짜 차량" button in the top-right corner of a check screen.
+List<Widget> fakeVehicleCorner(VehicleService vehicle, double s) => [
+  Positioned(top: 8 * s, right: 8 * s, child: FakeVehicleButton(vehicle)),
+];
 
 /// E2 차량 점검 안내. The auto check (started by the caller) runs silently.
 /// Owns [controller] for the whole check flow (E2–E5).
@@ -43,73 +49,88 @@ class _CheckIntroScreenState extends State<CheckIntroScreen> {
     super.dispose();
   }
 
+  void _start() {
+    c.startDirectCheck();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => CheckRunScreen(controller: c)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: c,
-    builder: (context, _) => EntryLayout(
-      vehicle: c.vehicle,
-      sideWidth: 380,
-      content: const [
-        Text('VEHICLE CHECK', style: AppText.label),
-        Text('시작 전에\n차량을 점검할게요', style: AppText.title),
-        Text(
-          '게임 중 버튼이 반응하지 않는 일이 없도록, 이 차의 장치가 잘 작동하는지 확인해요. 1분이면 끝나요.',
-          style: TextStyle(color: Color(0xFFCFCBC2)),
-        ),
-        Callout('점검 항목은 매번 무작위로 정해져요. 게임 힌트가 아니니 편하게 따라 해주세요.'),
-      ],
-      actions: [
-        FilledButton.icon(
+    builder: (context, _) => RailPage(
+      title: '시작 전에 차량을 점검할게요',
+      backLabel: '뒤로',
+      rail: (s, p) => [
+        RailAction(
           key: const Key('startCheck'),
-          onPressed: c.autoFinished
-              ? () {
-                  c.startDirectCheck();
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => CheckRunScreen(controller: c),
-                    ),
-                  );
-                }
-              : null,
-          icon: const Icon(Icons.check_rounded),
-          label: Text(c.autoFinished ? '점검 시작' : '자동 점검 중…'),
-        ),
-        OutlinedButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('뒤로'),
+          s: s,
+          palette: p,
+          primary: true,
+          icon: Icons.play_arrow_rounded,
+          label: c.autoFinished ? '점검 시작' : '자동 점검 중',
+          onTap: c.autoFinished ? _start : null,
         ),
       ],
-      side: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _Step(
-            n: 1,
-            title: '자동 점검',
-            trailing: '${c.autoDone} / ${c.autoTotal}',
-            body: '이 차가 어떤 장치를 지원하는지 앱이 알아서 확인해요. 할 일은 없어요.',
-            progress: c.autoDone / c.autoTotal,
-          ),
-          const SizedBox(height: 12),
-          const _Step(
-            n: 2,
-            title: '직접 점검',
-            trailing: '최대 5개',
-            body: '자동 점검에서 지원이 확인된 장치 중 몇 개를 골라, 버튼을 한 번씩 눌러 실제로 반응하는지 확인해요.',
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            '작동하지 않는 장치가 있으면 그 부분은 화면 터치로 대신 진행돼요.',
-            style: TextStyle(fontSize: 13, color: AppColors.muted),
-          ),
-        ],
-      ),
+      overlay: (s, _) => fakeVehicleCorner(c.vehicle, s),
+      body: (s, p) {
+        final text = TextStyle(fontSize: 30 * s, color: p.description);
+        return ListView(
+          children: [
+            Text(
+              '게임 중 버튼이 반응하지 않는 일이 없도록, 이 차의 장치가 잘 작동하는지 확인해요. 1분이면 끝나요.',
+              style: text,
+            ),
+            SizedBox(height: 32 * s),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _Step(
+                    s: s,
+                    palette: p,
+                    n: 1,
+                    title: '자동 점검',
+                    trailing: '${c.autoDone} / ${c.autoTotal}',
+                    body: '이 차가 어떤 장치를 지원하는지 앱이 알아서 확인해요. 할 일은 없어요.',
+                    progress: c.autoDone / c.autoTotal,
+                  ),
+                ),
+                SizedBox(width: 24 * s),
+                Expanded(
+                  child: _Step(
+                    s: s,
+                    palette: p,
+                    n: 2,
+                    title: '직접 점검',
+                    trailing: '최대 5개',
+                    body: '지원이 확인된 장치 중 몇 개를 골라, 버튼을 한 번씩 눌러 실제로 반응하는지 확인해요.',
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 24 * s),
+            RailCard(
+              s: s,
+              palette: p,
+              child: Text(
+                '점검 항목은 매번 무작위로 정해져요. 게임 힌트가 아니니 편하게 따라 해주세요. '
+                '작동하지 않는 장치는 게임에서 화면 터치로 대신 진행돼요.',
+                style: text.copyWith(fontSize: 26 * s),
+              ),
+            ),
+          ],
+        );
+      },
     ),
   );
 }
 
 class _Step extends StatelessWidget {
   const _Step({
+    required this.s,
+    required this.palette,
     required this.n,
     required this.title,
     required this.trailing,
@@ -117,6 +138,8 @@ class _Step extends StatelessWidget {
     this.progress,
   });
 
+  final double s;
+  final HomePalette palette;
   final int n;
   final String title;
   final String trailing;
@@ -124,45 +147,62 @@ class _Step extends StatelessWidget {
   final double? progress;
 
   @override
-  Widget build(BuildContext context) => Panel(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            CircleAvatar(
-              radius: 13,
-              backgroundColor: AppColors.border,
-              child: Text('$n', style: const TextStyle(fontSize: 13)),
-            ),
-            const SizedBox(width: 8),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-            const Spacer(),
-            Text(
-              trailing,
-              style: AppText.label.copyWith(
-                letterSpacing: 0,
-                color: progress == 1 ? AppColors.success : AppColors.muted,
+  Widget build(BuildContext context) {
+    final p = palette;
+    return RailCard(
+      s: s,
+      palette: p,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 22 * s,
+                backgroundColor: p.chip,
+                child: Text(
+                  '$n',
+                  style: TextStyle(fontSize: 24 * s, color: p.onChip),
+                ),
               ),
+              SizedBox(width: 16 * s),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 32 * s,
+                  fontWeight: FontWeight.w600,
+                  color: p.title,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                trailing,
+                style: TextStyle(
+                  fontSize: 26 * s,
+                  color: progress == 1
+                      ? HyundaiColors.activeBlue
+                      : p.description,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16 * s),
+          Text(
+            body,
+            style: TextStyle(fontSize: 26 * s, color: p.description),
+          ),
+          if (progress != null) ...[
+            SizedBox(height: 20 * s),
+            LinearProgressIndicator(
+              value: progress,
+              minHeight: 10 * s,
+              borderRadius: BorderRadius.circular(5 * s),
+              color: HyundaiColors.activeBlue,
+              backgroundColor: p.chip,
             ),
           ],
-        ),
-        const SizedBox(height: 10),
-        Text(
-          body,
-          style: const TextStyle(fontSize: 14, color: AppColors.muted),
-        ),
-        if (progress != null) ...[
-          const SizedBox(height: 10),
-          LinearProgressIndicator(
-            value: progress,
-            minHeight: 6,
-            borderRadius: BorderRadius.circular(3),
-            color: AppColors.success,
-            backgroundColor: const Color(0xFF22252D),
-          ),
         ],
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
