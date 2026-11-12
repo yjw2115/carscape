@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -38,7 +39,7 @@ class VentilationDashboard extends StatelessWidget {
       if (controller.gasLevel > 0)
         Positioned.fill(
           child: IgnorePointer(
-            child: _GasFill(
+            child: _SmokeDrift(
               key: const Key('cabin-gas-overlay'),
               fraction: (controller.gasLevel / 100).clamp(0.0, 1.0),
             ),
@@ -104,54 +105,10 @@ class VentilationDashboard extends StatelessWidget {
   );
 }
 
-class _GasFill extends StatelessWidget {
-  const _GasFill({super.key, required this.fraction});
+class _SmokeDrift extends StatefulWidget {
+  const _SmokeDrift({super.key, required this.fraction});
 
   final double fraction;
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final height = constraints.maxHeight;
-      final fill = height * fraction;
-      if (fill <= 0) return const SizedBox.shrink();
-      final feather = math.min(.45, height * .12 / fill);
-      return Align(
-        alignment: Alignment.bottomCenter,
-        child: SizedBox(
-          width: constraints.maxWidth,
-          height: fill,
-          child: ClipRect(
-            child: ShaderMask(
-              blendMode: BlendMode.dstIn,
-              shaderCallback: (rect) => LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(
-                    alpha: ((fraction - .9) * 10).clamp(0.0, 1.0),
-                  ),
-                  Colors.white,
-                  Colors.white,
-                ],
-                stops: [0, feather, 1],
-              ).createShader(rect),
-              child: OverflowBox(
-                alignment: Alignment.bottomCenter,
-                minHeight: height,
-                maxHeight: height,
-                child: const _SmokeDrift(),
-              ),
-            ),
-          ),
-        ),
-      );
-    },
-  );
-}
-
-class _SmokeDrift extends StatefulWidget {
-  const _SmokeDrift();
 
   @override
   State<_SmokeDrift> createState() => _SmokeDriftState();
@@ -180,6 +137,31 @@ class _SmokeDriftState extends State<_SmokeDrift>
     super.dispose();
   }
 
+  Shader _plumeMask(Rect bounds, Offset center, double strength) {
+    // Keep a broad fade above each plume's denser core as it settles down.
+    final density = strength * (widget.fraction * 3.5).clamp(0.0, 1.0);
+    final ellipse =
+        Matrix4.diagonal3Values(bounds.width * .96, bounds.height * 1.22, 1)
+          ..setTranslationRaw(
+            bounds.left + bounds.width * center.dx,
+            bounds.top + bounds.height * (center.dy + 1 - widget.fraction),
+            0,
+          );
+    return ui.Gradient.radial(
+      Offset.zero,
+      1,
+      [
+        Colors.white.withValues(alpha: density),
+        Colors.white.withValues(alpha: density),
+        Colors.white.withValues(alpha: density * .36),
+        Colors.transparent,
+      ],
+      const [0, .77, .89, 1],
+      TileMode.clamp,
+      ellipse.storage,
+    );
+  }
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
@@ -195,24 +177,36 @@ class _SmokeDriftState extends State<_SmokeDrift>
           ),
           builder: (context, smoke) {
             final phase = _drift.value * math.pi * 2;
+            final left = math.sin(phase);
+            final right = math.cos(phase + .8);
             return Stack(
               fit: StackFit.expand,
               children: [
-                Opacity(
-                  opacity: .60,
+                ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: (bounds) => _plumeMask(
+                    bounds,
+                    Offset(.26 + .10 * left, .99 + .04 * math.cos(phase)),
+                    .62,
+                  ),
                   child: Transform.translate(
                     offset: Offset(
-                      math.sin(phase) * width * .085,
+                      left * width * .085,
                       math.cos(phase) * height * .075,
                     ),
                     child: Transform.scale(scale: 1.22, child: smoke),
                   ),
                 ),
-                Opacity(
-                  opacity: .46,
+                ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: (bounds) => _plumeMask(
+                    bounds,
+                    Offset(.76 + .09 * right, 1.08 + .05 * math.sin(phase * 2)),
+                    .49,
+                  ),
                   child: Transform.translate(
                     offset: Offset(
-                      math.cos(phase + .8) * width * .11,
+                      right * width * .11,
                       math.sin(phase * 2) * height * .07,
                     ),
                     child: Transform.flip(
