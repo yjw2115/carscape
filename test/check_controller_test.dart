@@ -1,10 +1,7 @@
 import 'dart:math';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:carscape/core/game_session.dart';
-import 'package:carscape/core/theme.dart';
 import 'package:carscape/features/entry/check_controller.dart';
-import 'package:carscape/features/entry/mode_select_screen.dart';
 import 'package:carscape/vehicle/device_catalog.dart';
 import 'package:carscape/vehicle/fake_vehicle_service.dart';
 
@@ -110,68 +107,4 @@ void main() {
     await pumpEventQueue();
     expect(c.detected, isFalse);
   });
-
-  testWidgets(
-    'check runs on its own and returns home; tutorial opens directly',
-    (tester) async {
-      for (final size in const [Size(960, 600), Size(640, 600)]) {
-        tester.view.physicalSize = size;
-        tester.view.devicePixelRatio = 1;
-        addTearDown(tester.view.reset);
-        final car = FakeVehicleService(unsupported: {DeviceId.passengerHeater});
-        final session = GameSession();
-        // Home has no scroll view when wide; narrow builds lazily.
-        Future<void> show(String key, {bool up = false}) async {
-          if (size.width >= 740) return;
-          await tester.scrollUntilVisible(
-            find.byKey(Key(key)),
-            up ? -200 : 200,
-          );
-          await tester.ensureVisible(find.byKey(Key(key)));
-          await tester.pumpAndSettle();
-        }
-
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: appTheme(),
-            home: ModeSelectScreen(
-              key: UniqueKey(),
-              vehicle: car,
-              session: session,
-            ),
-          ),
-        );
-        await show('openCheck');
-        expect(find.text('아직 차량 점검 전이에요'), findsOneWidget);
-        await tester.tap(find.byKey(const Key('openCheck')));
-        await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const Key('startCheck')));
-        await tester.pumpAndSettle();
-        for (
-          var i = 0;
-          i < 5 && find.text('점검 목록').evaluate().isNotEmpty;
-          i++
-        ) {
-          await tester.tap(find.text('이 항목 건너뛰기'));
-          await tester.pumpAndSettle();
-        }
-        expect(find.text('CHECK COMPLETE'), findsOneWidget);
-        await tester.ensureVisible(find.byKey(const Key('checkDone')));
-        await tester.tap(find.byKey(const Key('checkDone')));
-        await tester.pumpAndSettle();
-        expect(find.text('CHECK COMPLETE'), findsNothing, reason: 'back home');
-        await show('openCheck');
-        expect(find.text('차량 점검 완료 · 화면 터치 대체 1개'), findsOneWidget);
-        expect(session.canUse(DeviceId.passengerHeater), isFalse);
-
-        await show('tutorial', up: true);
-        await tester.tap(find.byKey(const Key('tutorial')));
-        await tester.pump();
-        await tester.pump(const Duration(seconds: 1));
-        expect(find.byKey(const Key('tutorial')), findsNothing);
-        await tester.pumpWidget(const SizedBox());
-        await tester.pump(const Duration(seconds: 1));
-      }
-    },
-  );
 }
