@@ -8,6 +8,7 @@ import 'features/home/domain/escape_theme.dart';
 import 'features/home/presentation/coming_soon_page.dart';
 import 'features/home/presentation/home_palette.dart';
 import 'features/home/presentation/home_screen.dart';
+import 'features/my/my_page.dart';
 import 'features/records/record_store.dart';
 import 'features/records/records_page.dart';
 import 'features/settings/app_settings.dart';
@@ -69,7 +70,7 @@ class CarscapeApp extends StatelessWidget {
       (c) => Theme(
         data: tutorialTheme(),
         child: TutorialScreen(
-          narrationPlayer: SystemNarrationPlayer(
+          narrationPlayer: FrozenNightNarrationPlayer(
             volume: settings.narrationVolume,
           ),
           onFinished: (r) => Navigator.of(c).pop(r),
@@ -99,8 +100,12 @@ class CarscapeApp extends StatelessWidget {
     if (team == null || !context.mounted) return;
     await _push<void>(
       context,
-      (_) =>
-          RecordsPage(store: records, storyId: theme.id, highlightTeam: team),
+      (_) => MyPage(
+        records: records,
+        progress: progress,
+        highlightStory: theme.id,
+        highlightTeam: team,
+      ),
     );
   }
 
@@ -113,12 +118,12 @@ class CarscapeApp extends StatelessWidget {
     home: HomeScreen(
       openVehicleCheck: _check,
       onTutorial: _tutorial,
-      onRecords: (c) => _push<void>(c, (_) => RecordsPage(store: records)),
+      onMy: (c) =>
+          _push<void>(c, (_) => MyPage(records: records, progress: progress)),
       onSettings: (c) => _push<void>(
         c,
         (_) => SettingsPage(settings: settings, records: records),
       ),
-      onBadges: (c) => _push<void>(c, (_) => BadgeBookPage(progress: progress)),
       onStart: _start,
       lockedReason: (theme) => progress.lockedReason(theme.id),
     ),

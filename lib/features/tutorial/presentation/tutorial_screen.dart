@@ -285,9 +285,8 @@ class _TutorialScreenState extends State<TutorialScreen>
         : TutorialScript.dialogue[stages.last]!;
     unawaited(_replay(latest));
     if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
+    await _dialog<void>(
+      (context) => AlertDialog(
         title: const Row(
           children: [
             Icon(Icons.menu_book_rounded, color: TutorialColors.ice),
@@ -301,16 +300,12 @@ class _TutorialScreenState extends State<TutorialScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '지금까지 들은 대사예요. 눌러서 다시 들을 수 있어요.',
-                  style: TextStyle(color: TutorialColors.muted),
-                ),
-                const SizedBox(height: 16),
                 for (final stage in stages) ...[
                   Text(
                     _stageTitle(stage),
                     style: const TextStyle(
                       color: TutorialColors.ice,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -336,13 +331,13 @@ class _TutorialScreenState extends State<TutorialScreen>
                           line.speaker,
                           style: const TextStyle(
                             color: TutorialColors.warm,
-                            fontSize: 13,
+                            fontSize: 15,
                           ),
                         ),
                         subtitle: Text(
                           line.text,
                           style: const TextStyle(
-                            fontSize: 16,
+                            fontSize: 18,
                             color: TutorialColors.text,
                             height: 1.6,
                           ),
@@ -402,13 +397,10 @@ class _TutorialScreenState extends State<TutorialScreen>
     if (c.hintsUsed == 0) {
       c.setManualPause(true);
       accepted =
-          await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
+          await _dialog<bool>(
+            (context) => AlertDialog(
               title: Text('힌트 ${c.hintLevel + 1} / 3'),
-              content: const Text(
-                '힌트를 열면 사용 횟수가 1회 늘고, 최종 기록에 1분이 더해져요.\n나레이션 노트는 몇 번을 열어도 무료예요.',
-              ),
+              content: const Text('힌트를 열면 최종 기록에 1분이 더해져요.'),
               actionsAlignment: MainAxisAlignment.start,
               actions: [
                 FilledButton(
@@ -430,11 +422,10 @@ class _TutorialScreenState extends State<TutorialScreen>
     c.useHint();
     if (c.stage != currentStage) return;
     c.setManualPause(true);
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
+    await _dialog<void>(
+      (context) => AlertDialog(
         title: Text('힌트 ${c.hintLevel} / 3'),
-        content: Text(hint, style: const TextStyle(fontSize: 19, height: 1.7)),
+        content: Text(hint, style: const TextStyle(fontSize: 21, height: 1.7)),
         actionsAlignment: MainAxisAlignment.start,
         actions: [
           FilledButton(
@@ -469,54 +460,62 @@ class _TutorialScreenState extends State<TutorialScreen>
     onPopInvokedWithResult: (didPop, _) {
       if (!didPop && c.playing) c.setManualPause(true);
     },
-    child: Scaffold(
-      bottomNavigationBar: _testNavigation ? _testToolbar() : null,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: c.stage == TutorialStage.blackout
-                  ? const ColoredBox(color: Colors.black)
-                  : SnowBackdrop(
-                      shelter:
-                          c.stage == TutorialStage.result ||
-                          c.stage == TutorialStage.arrival,
-                    ),
-            ),
-            if (c.stage != TutorialStage.blackout)
+    child: GameZoom(
+      child: Scaffold(
+        bottomNavigationBar: _testNavigation ? _testToolbar() : null,
+        body: SafeArea(
+          child: Stack(
+            children: [
               Positioned.fill(
-                child: ColoredBox(
-                  color: TutorialColors.background.withValues(
-                    alpha:
-                        c.stage == TutorialStage.intro ||
-                            c.stage == TutorialStage.result
-                        ? .32
-                        : .83,
+                child: c.stage == TutorialStage.blackout
+                    ? const ColoredBox(color: Colors.black)
+                    : SnowBackdrop(
+                        shelter:
+                            c.stage == TutorialStage.result ||
+                            c.stage == TutorialStage.arrival,
+                      ),
+              ),
+              if (c.stage != TutorialStage.blackout)
+                Positioned.fill(
+                  child: ColoredBox(
+                    color: TutorialColors.background.withValues(
+                      alpha:
+                          c.stage == TutorialStage.intro ||
+                              c.stage == TutorialStage.result
+                          ? .32
+                          : .83,
+                    ),
                   ),
                 ),
+              Positioned.fill(
+                child: switch (c.stage) {
+                  TutorialStage.intro => _intro(),
+                  TutorialStage.result => _result(),
+                  TutorialStage.blackout => _blackout(),
+                  TutorialStage.arrival => _arrival(),
+                  _ => _play(),
+                },
               ),
-            Positioned.fill(
-              child: switch (c.stage) {
-                TutorialStage.intro => _intro(),
-                TutorialStage.result => _result(),
-                TutorialStage.blackout => _blackout(),
-                TutorialStage.arrival => _arrival(),
-                _ => _play(),
-              },
-            ),
-            if (c.dialogueActive &&
-                c.stage != TutorialStage.blackout &&
-                c.stage != TutorialStage.arrival &&
-                !c.paused)
-              _dialogueOverlay(),
-            if (c.paused &&
-                c.playing &&
-                (!_notesOpen || !c.parked || !c.connected))
-              _pauseOverlay(),
-          ],
+              if (c.dialogueActive &&
+                  c.stage != TutorialStage.blackout &&
+                  c.stage != TutorialStage.arrival &&
+                  !c.paused)
+                _dialogueOverlay(),
+              if (c.paused &&
+                  c.playing &&
+                  (!_notesOpen || !c.parked || !c.connected))
+                _pauseOverlay(),
+            ],
+          ),
         ),
       ),
     ),
+  );
+
+  /// Dialogs scale with the story screen.
+  Future<T?> _dialog<T>(WidgetBuilder builder) => showDialog<T>(
+    context: context,
+    builder: (context) => GameZoom(child: builder(context)),
   );
 
   Widget _intro() => LayoutBuilder(
@@ -569,25 +568,14 @@ class _TutorialScreenState extends State<TutorialScreen>
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _introRow(
-                            Icons.hearing_rounded,
-                            '이야기에 귀 기울여요',
-                            '대사 속에 다음 행동의 단서가 숨어 있어요.',
-                          ),
-                          const SizedBox(height: 12),
+                          _introRow(Icons.hearing_rounded, '이야기에 귀 기울여요'),
+                          const SizedBox(height: 16),
                           _introRow(
                             Icons.touch_app_outlined,
                             _demo ? '차량 버튼을 화면에서 체험해요' : '차 안의 실제 버튼을 사용해요',
-                            _demo
-                                ? '실내등, 창문, 와이퍼를 화면 버튼으로 조작해요.'
-                                : '차량이 P단인지 확인하고 진행해 주세요.',
                           ),
-                          const SizedBox(height: 12),
-                          _introRow(
-                            Icons.menu_book_rounded,
-                            '놓친 대사는 노트에서',
-                            '다시 듣기와 자막은 언제나 무료예요.',
-                          ),
+                          const SizedBox(height: 16),
+                          _introRow(Icons.menu_book_rounded, '놓친 대사는 노트에서'),
                         ],
                       ),
                     ),
@@ -597,11 +585,7 @@ class _TutorialScreenState extends State<TutorialScreen>
                         contentPadding: EdgeInsets.zero,
                         title: const Text(
                           '글로브박스 열림 감지 지원',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        subtitle: const Text(
-                          '끄면 히터 작동만으로 다음 이야기로 넘어가요.',
-                          style: TextStyle(fontSize: 12),
+                          style: TextStyle(fontSize: 16),
                         ),
                         value: _gloveboxSensor,
                         onChanged: (value) =>
@@ -625,7 +609,8 @@ class _TutorialScreenState extends State<TutorialScreen>
                             : '차량 연결됨 · 네 단계 준비 완료',
                         style: const TextStyle(
                           color: TutorialColors.ice,
-                          fontSize: 14,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       if (c.vehicleIssues.isNotEmpty)
@@ -633,20 +618,16 @@ class _TutorialScreenState extends State<TutorialScreen>
                           c.vehicleIssues.values.first,
                           style: const TextStyle(
                             color: TutorialColors.warning,
-                            fontSize: 12,
+                            fontSize: 15,
                           ),
                         ),
                     ],
-                    const SizedBox(height: 12),
-                    Text(
+                    const SizedBox(height: 16),
+                    _notice(
+                      Icons.info_outline_rounded,
                       _demo
                           ? '체험 모드 · 실제 차량은 제어하지 않아요.\n이야기는 허구이며 실제 차량 고장 시 대처법이 아니에요.'
                           : 'P단 정차 상태에서 플레이하세요. 시작할 때 차량 상태가 바뀔 수 있어요.',
-                      style: const TextStyle(
-                        color: TutorialColors.muted,
-                        fontSize: 12,
-                        height: 1.6,
-                      ),
                     ),
                   ],
                 ),
@@ -658,28 +639,42 @@ class _TutorialScreenState extends State<TutorialScreen>
     },
   );
 
-  Widget _introRow(IconData icon, String title, String subtitle) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _introRow(IconData icon, String title) => Row(
     children: [
-      Icon(icon, color: TutorialColors.ice, size: 23),
+      Icon(icon, color: TutorialColors.ice, size: 26),
       const SizedBox(width: 14),
       Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-            ),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 13,
-                color: TutorialColors.muted,
-                height: 1.6,
-              ),
-            ),
-          ],
+        child: Text(
+          title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+      ),
+    ],
+  );
+
+  /// Safety and status notes: an icon and readable text, never small gray.
+  Widget _notice(
+    IconData icon,
+    String text, {
+    Color color = TutorialColors.ice,
+    Key? key,
+  }) => Row(
+    key: key,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Icon(icon, size: 20, color: color),
+      ),
+      const SizedBox(width: 10),
+      Flexible(
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 15,
+            height: 1.5,
+            color: TutorialColors.text,
+          ),
         ),
       ),
     ],
@@ -707,7 +702,11 @@ class _TutorialScreenState extends State<TutorialScreen>
                   const SizedBox(height: 24),
                   const Text(
                     '운전석',
-                    style: TextStyle(color: TutorialColors.ice, fontSize: 14),
+                    style: TextStyle(
+                      color: TutorialColors.ice,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -773,7 +772,8 @@ class _TutorialScreenState extends State<TutorialScreen>
                   c.feedback,
                   style: const TextStyle(
                     color: TutorialColors.warm,
-                    fontSize: 14,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -783,28 +783,32 @@ class _TutorialScreenState extends State<TutorialScreen>
                 child: Text(
                   TutorialScript.coldComment,
                   key: Key('cold-caption'),
-                  style: TextStyle(color: TutorialColors.ice, fontSize: 14),
+                  style: TextStyle(
+                    color: TutorialColors.ice,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             if (!_demo && c.vehicleIssues.isNotEmpty)
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text(
+                child: _notice(
+                  Icons.link_off_rounded,
                   '차량 상태를 읽지 못했어요. 연결을 확인해 주세요.',
-                  style: const TextStyle(
-                    color: TutorialColors.warning,
-                    fontSize: 12,
-                  ),
+                  color: TutorialColors.warning,
                 ),
               ),
             if (c.stage == TutorialStage.ventilation)
-              const Align(
+              Align(
                 alignment: Alignment.centerLeft,
-                child: Text(
+                child: _notice(
+                  Icons.warning_amber_rounded,
                   '차량 장치를 조작할 때 손과 머리 끼임에 주의하세요.',
-                  style: TextStyle(color: TutorialColors.muted, fontSize: 12),
+                  color: TutorialColors.warm,
                 ),
               ),
+            const SizedBox(height: 8),
             Align(alignment: Alignment.centerLeft, child: _footer()),
           ],
         ),
@@ -839,15 +843,14 @@ class _TutorialScreenState extends State<TutorialScreen>
           Text(
             formatTime(c.elapsed),
             style: const TextStyle(
-              fontSize: 24,
+              fontSize: 30,
+              fontWeight: FontWeight.w600,
               color: TutorialColors.ice,
               fontFeatures: [FontFeature.tabularFigures()],
             ),
           ),
-          Text(
-            _demo ? '화면으로 차량 체험' : '차량 연결됨',
-            style: const TextStyle(fontSize: 11, color: TutorialColors.muted),
-          ),
+          const SizedBox(height: 4),
+          _tag(_demo ? '화면으로 차량 체험' : '차량 연결됨'),
         ],
       ),
     ],
@@ -861,7 +864,11 @@ class _TutorialScreenState extends State<TutorialScreen>
       else
         const Text(
           '차량의 실제 버튼을 조작해 주세요.',
-          style: TextStyle(color: TutorialColors.ice),
+          style: TextStyle(
+            color: TutorialColors.ice,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       if (c.feedback.isNotEmpty)
         Padding(
@@ -871,8 +878,9 @@ class _TutorialScreenState extends State<TutorialScreen>
             key: const Key('feedback'),
             style: const TextStyle(
               color: TutorialColors.warm,
-              fontSize: 14,
-              height: 1.6,
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              height: 1.5,
             ),
           ),
         ),
@@ -884,7 +892,7 @@ class _TutorialScreenState extends State<TutorialScreen>
               '힌트 ${c.hintLevel}  ·  ${c.hintText}',
               style: const TextStyle(
                 color: TutorialColors.ice,
-                fontSize: 14,
+                fontSize: 17,
                 height: 1.6,
               ),
             ),
@@ -918,7 +926,7 @@ class _TutorialScreenState extends State<TutorialScreen>
                 icon: Icon(
                   c.lights[seat]! ? Icons.lightbulb : Icons.lightbulb_outline,
                   color: c.lights[seat]! ? TutorialColors.warm : null,
-                  size: 19,
+                  size: 22,
                 ),
                 label: Align(
                   alignment: Alignment.centerLeft,
@@ -955,6 +963,7 @@ class _TutorialScreenState extends State<TutorialScreen>
       ],
     ),
     TutorialStage.ventilation => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (final seat in CarSeat.values)
           Padding(
@@ -964,12 +973,16 @@ class _TutorialScreenState extends State<TutorialScreen>
                 Expanded(
                   child: Text(
                     seat.shortLabel,
-                    style: const TextStyle(fontSize: 14),
+                    style: const TextStyle(fontSize: 16),
                   ),
                 ),
                 Text(
                   '${(c.windows[seat] ?? 0).round()}%',
-                  style: const TextStyle(color: TutorialColors.ice),
+                  style: const TextStyle(
+                    color: TutorialColors.ice,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(width: 6),
                 _windowButton(seat, -1),
@@ -1009,8 +1022,13 @@ class _TutorialScreenState extends State<TutorialScreen>
         const SizedBox(height: 14),
         Text(
           '휠 ${(c.steeringAngle ?? 0).round()}°',
-          style: const TextStyle(color: TutorialColors.ice),
+          style: const TextStyle(
+            color: TutorialColors.ice,
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+          ),
         ),
+        const SizedBox(height: 6),
         Wrap(
           spacing: 6,
           runSpacing: 6,
@@ -1031,13 +1049,13 @@ class _TutorialScreenState extends State<TutorialScreen>
   };
 
   Widget _windowButton(CarSeat seat, int direction) => SizedBox(
-    width: 49,
-    height: 48,
+    width: 54,
+    height: 54,
     child: OutlinedButton(
       key: Key('window-${seat.name}-${direction > 0 ? 'down' : 'up'}'),
       style: OutlinedButton.styleFrom(
         padding: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       onPressed: c.acceptsInput ? () => c.moveWindow(seat, direction) : null,
       child: Semantics(
@@ -1050,11 +1068,11 @@ class _TutorialScreenState extends State<TutorialScreen>
               direction > 0
                   ? Icons.keyboard_arrow_down
                   : Icons.keyboard_arrow_up,
-              size: 20,
+              size: 22,
             ),
             Text(
               direction > 0 ? '내림' : '올림',
-              style: const TextStyle(fontSize: 10, height: 1),
+              style: const TextStyle(fontSize: 12, height: 1),
             ),
           ],
         ),
@@ -1070,14 +1088,14 @@ class _TutorialScreenState extends State<TutorialScreen>
       OutlinedButton.icon(
         key: const Key('notes'),
         onPressed: c.visited.isEmpty ? null : _notes,
-        icon: const Icon(Icons.menu_book_outlined, size: 19),
+        icon: const Icon(Icons.menu_book_outlined, size: 22),
         label: const Text('나레이션 노트'),
       ),
       if (TutorialScript.hints.containsKey(c.stage))
         OutlinedButton.icon(
           key: const Key('hint'),
           onPressed: c.canHint && c.acceptsInput ? _hint : null,
-          icon: const Icon(Icons.lightbulb_outline, size: 19),
+          icon: const Icon(Icons.lightbulb_outline, size: 22),
           label: Text('힌트 ${c.hintLevel}/3'),
         ),
       IconButton(
@@ -1102,11 +1120,7 @@ class _TutorialScreenState extends State<TutorialScreen>
         icon: const Icon(Icons.pause_rounded),
         constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
       ),
-      if (_voiceUnavailable)
-        const Text(
-          '음성 재생 실패 · 자막으로 진행',
-          style: TextStyle(fontSize: 11, color: TutorialColors.muted),
-        ),
+      if (_voiceUnavailable) _tag('음성 재생 실패 · 자막으로 진행'),
     ],
   );
 
@@ -1155,12 +1169,14 @@ class _TutorialScreenState extends State<TutorialScreen>
 
   Widget _dialogueOverlay() => Positioned.fill(
     child: ColoredBox(
-      color: Colors.black.withValues(alpha: .72),
-      child: Center(
+      color: Colors.black.withValues(alpha: .62),
+      // Bottom-left: the reply buttons sit on the driver's side.
+      child: Align(
+        alignment: Alignment.bottomLeft,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(28),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 660),
+            constraints: const BoxConstraints(maxWidth: 720),
             child: _panel(
               Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1175,21 +1191,22 @@ class _TutorialScreenState extends State<TutorialScreen>
                       const SizedBox(width: 10),
                       Text(
                         c.currentLine?.speaker ?? '',
-                        style: const TextStyle(color: TutorialColors.ice),
+                        style: const TextStyle(
+                          color: TutorialColors.ice,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const Spacer(),
-                      Text(
-                        '${c.dialogueIndex + 1} / ${c.dialogue.length}',
-                        style: const TextStyle(color: TutorialColors.muted),
-                      ),
+                      _tag('${c.dialogueIndex + 1} / ${c.dialogue.length}'),
                     ],
                   ),
                   const SizedBox(height: 18),
                   Text(
                     c.currentLine?.text ?? '',
-                    style: const TextStyle(fontSize: 24, height: 1.7),
+                    style: const TextStyle(fontSize: 26, height: 1.7),
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 24),
                   Wrap(
                     spacing: 10,
                     runSpacing: 8,
@@ -1201,11 +1218,6 @@ class _TutorialScreenState extends State<TutorialScreen>
                         label: const Text('노트에서 다시 듣기'),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    '대사가 끝나면 자동으로 이어져요.',
-                    style: TextStyle(color: TutorialColors.muted, fontSize: 12),
                   ),
                 ],
               ),
@@ -1238,11 +1250,12 @@ class _TutorialScreenState extends State<TutorialScreen>
   Widget _pauseOverlay() => Positioned.fill(
     child: ColoredBox(
       color: TutorialColors.background.withValues(alpha: .96),
-      child: Center(
+      child: Align(
+        alignment: Alignment.centerLeft,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(28),
+          padding: const EdgeInsets.all(40),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
+            constraints: const BoxConstraints(maxWidth: 560),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1253,7 +1266,7 @@ class _TutorialScreenState extends State<TutorialScreen>
                       : !c.connected
                       ? Icons.link_off
                       : Icons.pause_circle_outline,
-                  size: 48,
+                  size: 56,
                   color: TutorialColors.ice,
                 ),
                 const SizedBox(height: 20),
@@ -1266,22 +1279,22 @@ class _TutorialScreenState extends State<TutorialScreen>
                       ? '차량 상태를 확인하고 있어요'
                       : '잠시 숨을 고르세요',
                   style: const TextStyle(
-                    fontSize: 29,
+                    fontSize: 32,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 12),
                 Text(
                   !c.parked
-                      ? '정차 상태가 확인되면 다시 시작할 수 있어요.'
+                      ? '시간이 멈춰 있어요'
                       : !c.connected
-                      ? '연결이 돌아오면 같은 퍼즐에서 계속해요.'
+                      ? '연결되면 같은 퍼즐에서 이어가요'
                       : c.hasSensorProblem
-                      ? '장치의 현재 상태를 읽지 못해 이야기와 시간을 멈췄어요. 연결이 돌아오면 이어서 진행해요.'
-                      : '퍼즐 진행과 시간은 멈춰 있어요. 준비되면 돌아오세요.',
+                      ? '연결되면 이어서 진행해요'
+                      : '시간이 멈춰 있어요',
                   style: const TextStyle(
-                    color: TutorialColors.muted,
-                    fontSize: 17,
+                    color: TutorialColors.text,
+                    fontSize: 20,
                   ),
                 ),
                 const SizedBox(height: 26),
@@ -1330,10 +1343,7 @@ class _TutorialScreenState extends State<TutorialScreen>
                     _eyebrow('안전한 곳에 도착했습니다', color: TutorialColors.warm),
                     const SizedBox(height: 12),
                     if (c.usedTestNavigation)
-                      const Text(
-                        '단계 이동을 사용한 테스트 기록',
-                        style: TextStyle(color: TutorialColors.warm),
-                      ),
+                      _tag('단계 이동을 사용한 테스트 기록', color: TutorialColors.warm),
                     Text(
                       c.currentLine?.text ?? '',
                       style: const TextStyle(fontSize: 27, height: 1.6),
@@ -1373,11 +1383,10 @@ class _TutorialScreenState extends State<TutorialScreen>
                     ),
                     const SizedBox(height: 20),
                     _eyebrow('스테이지 1 완료', color: TutorialColors.warm),
-                    if (r.usedTestNavigation)
-                      const Text(
-                        '단계 이동을 사용한 테스트 기록',
-                        style: TextStyle(color: TutorialColors.warm),
-                      ),
+                    if (r.usedTestNavigation) ...[
+                      const SizedBox(height: 8),
+                      _tag('단계 이동을 사용한 테스트 기록', color: TutorialColors.warm),
+                    ],
                     const SizedBox(height: 12),
                     const Text(
                       '우리 모두, 살아남았다.',
@@ -1391,8 +1400,8 @@ class _TutorialScreenState extends State<TutorialScreen>
                     const Text(
                       '작은 불빛 하나부터 시작된 협동.\n네 사람의 힘으로 얼어붙은 밤을 건넜어요.',
                       style: TextStyle(
-                        fontSize: 18,
-                        color: Color(0xFFCCD8DE),
+                        fontSize: 20,
+                        color: Color(0xFFD7E2E8),
                         height: 1.6,
                       ),
                     ),
@@ -1403,17 +1412,15 @@ class _TutorialScreenState extends State<TutorialScreen>
                         runSpacing: 20,
                         children: [
                           _stat('플레이 시간', formatTime(r.playTime)),
-                          _stat('사용한 힌트', '${r.hintsUsed}회'),
+                          // Each hint adds a minute to the final record.
+                          _stat(
+                            '사용한 힌트',
+                            r.hintsUsed == 0
+                                ? '0회'
+                                : '${r.hintsUsed}회 · +${r.hintsUsed}분',
+                          ),
                           _stat('최종 기록', formatTime(r.recordedTime)),
                         ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      '최종 기록 = 플레이 시간 + 힌트 1회당 1분 · 일시정지 시간 제외',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: TutorialColors.muted,
                       ),
                     ),
                     const SizedBox(height: 22),
@@ -1458,7 +1465,11 @@ class _TutorialScreenState extends State<TutorialScreen>
     children: [
       Text(
         label,
-        style: const TextStyle(fontSize: 13, color: TutorialColors.muted),
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: TutorialColors.text,
+        ),
       ),
       const SizedBox(height: 6),
       Text(
@@ -1476,30 +1487,26 @@ class _TutorialScreenState extends State<TutorialScreen>
   Widget _eyebrow(String text, {Color color = TutorialColors.ice}) => Text(
     text,
     style: TextStyle(
-      fontSize: 12,
+      fontSize: 14,
       fontWeight: FontWeight.w700,
       letterSpacing: 1.5,
       color: color,
     ),
   );
-  Widget _panel(Widget child) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(
-      color: TutorialColors.panel.withValues(alpha: .95),
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: TutorialColors.border),
-    ),
-    child: child,
-  );
+  Widget _panel(Widget child) => GlassPanel(child: child);
+
+  /// Glass pill for short facts.
   Widget _tag(String text, {Color color = TutorialColors.ice}) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
     decoration: BoxDecoration(
-      color: color.withValues(alpha: .08),
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: color.withValues(alpha: .25)),
+      color: color.withValues(alpha: .14),
+      borderRadius: BorderRadius.circular(40),
+      border: Border.all(color: color.withValues(alpha: .4)),
     ),
-    child: Text(text, style: TextStyle(fontSize: 12, color: color)),
+    child: Text(
+      text,
+      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: color),
+    ),
   );
 
   String _stageTitle(TutorialStage stage) => switch (stage) {

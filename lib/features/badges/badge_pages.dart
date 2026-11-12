@@ -1,3 +1,4 @@
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import '../../core/rail_page.dart';
 import '../home/domain/escape_theme.dart';
@@ -71,19 +72,54 @@ class BadgeMedal extends StatelessWidget {
   }
 }
 
-/// 배지판: the tutorial badge and one per story (season 1).
-class BadgeBookPage extends StatelessWidget {
-  const BadgeBookPage({
+/// 배지 half of the MY page: the tutorial badge and one per story (season 1)
+/// in a single column of floating liquid-glass cards that pop in one by one.
+class BadgeShelf extends StatefulWidget {
+  const BadgeShelf({
     super.key,
     required this.progress,
+    required this.s,
+    required this.palette,
     this.stories = escapeThemes,
   });
 
   final Progress progress;
+  final double s;
+  final HomePalette palette;
   final List<EscapeTheme> stories;
 
   @override
+  State<BadgeShelf> createState() => _BadgeShelfState();
+}
+
+class _BadgeShelfState extends State<BadgeShelf>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pop = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..forward();
+
+  @override
+  void dispose() {
+    _pop.dispose();
+    super.dispose();
+  }
+
+  /// Each card springs up (slightly past full size) a beat after the last.
+  Animation<double> _popFor(int i, int count) {
+    final start = count < 2 ? 0.0 : 0.4 * i / (count - 1);
+    return CurvedAnimation(
+      parent: _pop,
+      curve: Interval(start, start + 0.6, curve: Curves.easeOutBack),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final s = widget.s;
+    final p = widget.palette;
+    final progress = widget.progress;
+    final stories = widget.stories;
     final entries = [
       (
         tutorialBadgeId,
@@ -93,104 +129,283 @@ class BadgeBookPage extends StatelessWidget {
       for (final st in stories) (st.id, st.title, progress.lockedReason(st.id)),
     ];
     final earned = entries.where((e) => progress.badge(e.$1) != null).length;
-    final gold = entries
-        .where((e) => progress.badge(e.$1) == BadgeTier.gold)
-        .length;
-    final storiesEarned = stories
-        .where((st) => progress.badge(st.id) != null)
-        .length;
-    return RailPage(
-      title: '배지판',
-      body: (s, p) {
-        final sub = TextStyle(fontSize: 26 * s, color: p.description);
-        return ListView(
+
+    return Stack(
+      children: [
+        // Soft color behind the glass so the cards have something to blur.
+        Positioned.fill(child: CustomPaint(painter: _GlowPainter(p))),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              '모은 배지 $earned / ${entries.length} · 금색 테두리 $gold',
-              style: sub.copyWith(fontSize: 30 * s),
+            Padding(
+              padding: EdgeInsets.fromLTRB(20 * s, 32 * s, 20 * s, 0),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.military_tech_outlined,
+                    size: 44 * s,
+                    color: p.selectedBorder,
+                  ),
+                  SizedBox(width: 14 * s),
+                  Expanded(
+                    child: Text(
+                      '배지',
+                      style: TextStyle(
+                        fontSize: 40 * s,
+                        fontWeight: FontWeight.w600,
+                        color: p.title,
+                      ),
+                    ),
+                  ),
+                  StatusChip(
+                    key: const Key('badgeCount'),
+                    s: s,
+                    palette: p,
+                    label: '$earned / ${entries.length}',
+                  ),
+                ],
+              ),
             ),
-            SizedBox(height: 32 * s),
-            Wrap(
-              spacing: 24 * s,
-              runSpacing: 24 * s,
-              children: [
-                for (final (id, title, lock) in entries)
-                  SizedBox(
-                    width: 290 * s,
-                    child: RailCard(
-                      s: s,
-                      palette: p,
-                      child: Column(
+            Expanded(
+              child: ListView(
+                // Room for the cards' shadows and their spring past full size.
+                padding: EdgeInsets.fromLTRB(20 * s, 24 * s, 20 * s, 24 * s),
+                children: [
+                  for (final (i, (id, title, lock)) in entries.indexed)
+                    Padding(
+                      padding: EdgeInsets.only(bottom: 18 * s),
+                      child: ScaleTransition(
+                        scale: _popFor(i, entries.length),
+                        child: _GlassBadgeCard(
+                          s: s,
+                          palette: p,
+                          id: id,
+                          title: title,
+                          tier: progress.badge(id),
+                          lock: lock,
+                        ),
+                      ),
+                    ),
+                  // How each border is earned, kept to one glance.
+                  for (final t in BadgeTier.values)
+                    Padding(
+                      padding: EdgeInsets.only(top: 10 * s),
+                      child: Row(
                         children: [
-                          BadgeMedal(
-                            id: id,
-                            tier: progress.badge(id),
-                            size: 150 * s,
-                            palette: p,
+                          Icon(
+                            Icons.hexagon_outlined,
+                            size: 30 * s,
+                            color: _tierColor(t),
                           ),
-                          SizedBox(height: 18 * s),
+                          SizedBox(width: 10 * s),
                           Text(
-                            keepWords(title),
-                            textAlign: TextAlign.center,
+                            t.label,
                             style: TextStyle(
-                              fontSize: 28 * s,
+                              fontSize: 24 * s,
                               fontWeight: FontWeight.w600,
                               color: p.title,
                             ),
                           ),
-                          SizedBox(height: 6 * s),
-                          Text(
-                            keepWords(switch (progress.badge(id)) {
-                              final t? => '${t.label} 테두리',
-                              null => lock ?? '도전해 보세요',
-                            }),
-                            textAlign: TextAlign.center,
-                            style: sub.copyWith(fontSize: 22 * s),
+                          SizedBox(width: 12 * s),
+                          Expanded(
+                            child: Text(
+                              t.rule,
+                              style: TextStyle(
+                                fontSize: 24 * s,
+                                color: p.title,
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-              ],
-            ),
-            SizedBox(height: 32 * s),
-            RailCard(
-              s: s,
-              palette: p,
-              child: Text(
-                '시즌 1 · 스토리 ${stories.length}편을 모두 모으면 시즌 완성 특별 배지 '
-                '($storiesEarned / ${stories.length})',
-                style: sub.copyWith(color: p.title),
+                ],
               ),
             ),
-            SizedBox(height: 24 * s),
-            Wrap(
-              spacing: 32 * s,
-              runSpacing: 12 * s,
-              children: [
-                for (final t in BadgeTier.values)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.hexagon_outlined,
-                        size: 32 * s,
-                        color: _tierColor(t),
-                      ),
-                      SizedBox(width: 8 * s),
-                      Text(
-                        '${t.label} · ${t.rule}',
-                        style: sub.copyWith(fontSize: 22 * s),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
           ],
-        );
-      },
+        ),
+      ],
     );
   }
+}
+
+/// One badge on a frosted, floating glass card, same recipe as the home's
+/// [GlassLogo]: blur, a light diagonal tint, a bright rim and a deep shadow.
+class _GlassBadgeCard extends StatelessWidget {
+  const _GlassBadgeCard({
+    required this.s,
+    required this.palette,
+    required this.id,
+    required this.title,
+    required this.tier,
+    required this.lock,
+  });
+
+  final double s;
+  final HomePalette palette;
+  final String id;
+  final String title;
+  final BadgeTier? tier;
+  final String? lock;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = palette;
+    final t = tier;
+    final radius = BorderRadius.circular(34 * s);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            color: p.shadow,
+            blurRadius: 40 * s,
+            offset: Offset(0, 18 * s),
+          ),
+          if (t != null)
+            BoxShadow(
+              color: _tierColor(t).withValues(alpha: 0.3),
+              blurRadius: 36 * s,
+              spreadRadius: -4 * s,
+            ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24 * s, sigmaY: 24 * s),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 28 * s, vertical: 16 * s),
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              border: Border.all(color: p.glassBorder, width: 1.5 * s),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [p.glassTint, p.glassTintSoft, p.glassTint],
+                stops: const [0, 0.6, 1],
+              ),
+            ),
+            // Sheen along the top edge, like light on curved glass.
+            foregroundDecoration: BoxDecoration(
+              borderRadius: radius,
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.center,
+                colors: [
+                  Colors.white.withValues(alpha: 0.16),
+                  Colors.white.withValues(alpha: 0),
+                ],
+              ),
+            ),
+            child: Opacity(
+              opacity: t == null ? 0.72 : 1,
+              child: Row(
+                children: [
+                  BadgeMedal(id: id, tier: t, size: 92 * s, palette: p),
+                  SizedBox(width: 28 * s),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 30 * s,
+                            fontWeight: FontWeight.w600,
+                            color: p.title,
+                          ),
+                        ),
+                        if (t != null) ...[
+                          SizedBox(height: 6 * s),
+                          Text(
+                            keepWords('${t.label} 테두리'),
+                            style: TextStyle(
+                              fontSize: 26 * s,
+                              fontWeight: FontWeight.w500,
+                              color: p.title,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: 16 * s),
+                  if (t != null)
+                    Icon(
+                      Icons.check_circle_rounded,
+                      size: 36 * s,
+                      // The pale tier colors vanish on light glass; the
+                      // medal's rim still shows the tier there.
+                      color: p == HomePalette.dark
+                          ? _tierColor(t)
+                          : p.selectedBorder,
+                    )
+                  else if (lock != null)
+                    Icon(
+                      Icons.lock_outline_rounded,
+                      size: 36 * s,
+                      color: p.title,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Large blurred color pools behind the badge cards.
+class _GlowPainter extends CustomPainter {
+  const _GlowPainter(this.palette);
+
+  final HomePalette palette;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final dark = palette == HomePalette.dark;
+    final pools = [
+      (
+        const Offset(0.85, 0.18),
+        0.62,
+        dark
+            ? HyundaiColors.activeBlue.withValues(alpha: 0.40)
+            : HyundaiColors.skyBlue.withValues(alpha: 0.85),
+      ),
+      (
+        const Offset(0.12, 0.55),
+        0.55,
+        dark
+            ? _gold.withValues(alpha: 0.26)
+            : HyundaiColors.sand.withValues(alpha: 0.95),
+      ),
+      (
+        const Offset(0.78, 0.88),
+        0.5,
+        dark
+            ? HyundaiColors.skyBlue.withValues(alpha: 0.22)
+            : HyundaiColors.activeBlue.withValues(alpha: 0.22),
+      ),
+    ];
+    for (final (at, r, color) in pools) {
+      final center = Offset(at.dx * size.width, at.dy * size.height);
+      final radius = r * size.width;
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [color, color.withValues(alpha: 0)],
+          ).createShader(Rect.fromCircle(center: center, radius: radius)),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_GlowPainter oldDelegate) =>
+      oldDelegate.palette != palette;
 }
 
 /// 배지 획득: shown right after a badge is earned or upgraded.
@@ -267,9 +482,12 @@ class BadgeGetPage extends StatelessWidget {
                     ),
                   )
               else
-                Text(
-                  '튜토리얼을 마쳤어요. 이제 첫 번째 스토리 "얼어붙은 밤"을 플레이할 수 있어요.',
-                  style: TextStyle(fontSize: 28 * s, color: p.description),
+                StatusChip(
+                  s: s,
+                  palette: p,
+                  icon: Icons.lock_open_rounded,
+                  label: '얼어붙은 밤 열림',
+                  tone: ChipTone.ok,
                 ),
             ],
           ),

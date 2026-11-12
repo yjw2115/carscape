@@ -21,7 +21,7 @@ class SettingsPage extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('기록을 모두 지울까요?'),
-        content: const Text('이 차에 저장된 모든 스토리의 팀 기록이 사라지고 되돌릴 수 없어요.'),
+        content: const Text('되돌릴 수 없어요.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -55,7 +55,14 @@ class SettingsPage extends StatelessWidget {
           fontWeight: FontWeight.w600,
           color: p.title,
         );
-        final hint = TextStyle(fontSize: 26 * s, color: p.description);
+        final amount = TextStyle(fontSize: 28 * s, color: p.title);
+        Widget heading(IconData icon, String text) => Row(
+          children: [
+            Icon(icon, size: 44 * s, color: p.title),
+            SizedBox(width: 18 * s),
+            Text(text, style: label),
+          ],
+        );
         Widget volume(Key key, double value, ValueChanged<double>? onChanged) =>
             Row(
               children: [
@@ -75,7 +82,7 @@ class SettingsPage extends StatelessWidget {
                 ),
                 SizedBox(
                   width: 96 * s,
-                  child: Text('${(value * 100).round()}%', style: hint),
+                  child: Text('${(value * 100).round()}%', style: amount),
                 ),
               ],
             );
@@ -87,8 +94,7 @@ class SettingsPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('나레이션 음량', style: label),
-                  Text('대사를 읽어 주는 목소리 크기예요. 자막은 항상 표시돼요.', style: hint),
+                  heading(Icons.record_voice_over_outlined, '나레이션 음량'),
                   volume(
                     const Key('narrationVolume'),
                     settings.narrationVolume,
@@ -106,7 +112,9 @@ class SettingsPage extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: Text('배경음악', style: label)),
+                      Expanded(
+                        child: heading(Icons.music_note_outlined, '배경음악'),
+                      ),
                       Transform.scale(
                         scale: (s * 2).clamp(1, 2),
                         child: Switch(
@@ -132,13 +140,7 @@ class SettingsPage extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('기록 초기화', style: label),
-                        Text('시승차·가족 차처럼 여럿이 쓰는 차에서 기록을 비울 때 써요.', style: hint),
-                      ],
-                    ),
+                    child: heading(Icons.delete_outline_rounded, '기록 초기화'),
                   ),
                   SizedBox(width: 24 * s),
                   SizedBox(

@@ -125,7 +125,7 @@ void main() {
       reason: 'check first',
     );
     await tapRail('뒤로');
-    expect(find.text('차량 점검 완료 · 모든 장치를 쓸 수 있어요'), findsOneWidget);
+    expect(find.text('완료'), findsOneWidget, reason: '기능점검 status');
     await tapRail('홈으로');
 
     await tapRail('튜토리얼');
@@ -136,9 +136,27 @@ void main() {
     );
     await tapRail('홈으로');
 
-    await tapRail('기록·순위');
+    await tapRail('MY');
     expect(find.text('펭귄'), findsOneWidget);
     expect(find.text('11:40'), findsOneWidget);
+    // Records sit under each story's title; the rail only goes home.
+    for (final story in escapeThemes) {
+      expect(
+        find.descendant(
+          of: find.byType(RecordsPanel),
+          matching: find.text(story.title),
+        ),
+        findsOneWidget,
+      );
+    }
+    expect(find.byType(RailAction), findsOneWidget, reason: '홈으로 only');
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('badgeCount')),
+        matching: find.text('0 / ${escapeThemes.length + 1}'),
+      ),
+      findsOneWidget,
+    );
     await tapRail('홈으로');
 
     await tapRail('설정');
@@ -149,7 +167,7 @@ void main() {
     expect(records.all, isEmpty);
     await tapRail('홈으로');
 
-    await tapRail('차량 점검');
+    await tapRail('기능점검');
     expect(
       find.byKey(const Key('startCheck')),
       findsOneWidget,
@@ -177,7 +195,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.bySemanticsLabel('차량 점검'));
+      await tester.tap(find.bySemanticsLabel('기능점검'));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('startCheck')));
       await tester.pumpAndSettle();
@@ -287,10 +305,13 @@ void main() {
     expect(find.text('기어 상태를 확인하고 있어요').hitTestable(), findsOneWidget);
     expect(find.text('얼어붙은 밤을 마치면 열려요'), findsWidgets);
 
-    await tester.tap(find.bySemanticsLabel('배지'));
+    await tester.tap(find.bySemanticsLabel('MY'));
     await tester.pumpAndSettle();
     expect(
-      find.text('모은 배지 1 / ${escapeThemes.length + 1} · 금색 테두리 0'),
+      find.descendant(
+        of: find.byKey(const Key('badgeCount')),
+        matching: find.text('1 / ${escapeThemes.length + 1}'),
+      ),
       findsOneWidget,
     );
     expect(find.text(keepWords('기본 테두리')), findsOneWidget);

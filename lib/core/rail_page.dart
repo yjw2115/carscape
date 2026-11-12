@@ -227,3 +227,62 @@ class RailCard extends StatelessWidget {
     child: child,
   );
 }
+
+enum ChipTone { neutral, ok, warning }
+
+/// A word or two of status in a pill (완료, 점검 전 …), used instead of a
+/// sentence of gray text.
+class StatusChip extends StatelessWidget {
+  const StatusChip({
+    super.key,
+    required this.s,
+    required this.palette,
+    required this.label,
+    this.tone = ChipTone.neutral,
+    this.icon,
+  });
+
+  final double s;
+  final HomePalette palette;
+  final String label;
+  final ChipTone tone;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = palette;
+    // Active Blue is too light for text on the light theme's white cards.
+    final ok = p == HomePalette.dark
+        ? HyundaiColors.activeBlue
+        : HyundaiColors.blue;
+    final (fg, bg) = switch (tone) {
+      ChipTone.ok => (ok, HyundaiColors.activeBlue.withValues(alpha: 0.16)),
+      ChipTone.warning => (p.onWarning, p.warning),
+      ChipTone.neutral => (p.title, p.checking),
+    };
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 24 * s, vertical: 12 * s),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(40 * s),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 30 * s, color: fg),
+            SizedBox(width: 10 * s),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 28 * s,
+              fontWeight: FontWeight.w600,
+              color: fg,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

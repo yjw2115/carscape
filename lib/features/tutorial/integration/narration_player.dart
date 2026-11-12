@@ -12,6 +12,11 @@ abstract interface class NarrationPlayer {
 
 /// Frozen Night's dialogue plays from bundled Korean clips on each platform.
 class FrozenNightNarrationPlayer implements NarrationPlayer {
+  FrozenNightNarrationPlayer({this.volume = 1});
+
+  /// 0–1, from the player's settings.
+  final double volume;
+
   static final _clips = <String, String>{
     for (final entry in TutorialScript.dialogue.entries)
       for (final (index, line) in entry.value.indexed)
@@ -56,7 +61,10 @@ class FrozenNightNarrationPlayer implements NarrationPlayer {
             if (!completion.isCompleted) completion.complete(false);
           },
         );
-        await player.play(AssetSource('frozen_night/voice/$clip'));
+        await player.play(
+          AssetSource('frozen_night/voice/$clip'),
+          volume: volume,
+        );
       });
       return await completion.future.timeout(const Duration(seconds: 25));
     } catch (_) {

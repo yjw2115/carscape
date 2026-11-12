@@ -60,7 +60,7 @@ class _CheckIntroScreenState extends State<CheckIntroScreen> {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: c,
     builder: (context, _) => RailPage(
-      title: '시작 전에 차량을 점검할게요',
+      title: '기능점검',
       backLabel: '뒤로',
       rail: (s, p) => [
         RailAction(
@@ -74,55 +74,37 @@ class _CheckIntroScreenState extends State<CheckIntroScreen> {
         ),
       ],
       overlay: (s, _) => fakeVehicleCorner(c.vehicle, s),
-      body: (s, p) {
-        final text = TextStyle(fontSize: 30 * s, color: p.description);
-        return ListView(
-          children: [
-            Text(
-              '게임 중 버튼이 반응하지 않는 일이 없도록, 이 차의 장치가 잘 작동하는지 확인해요. 1분이면 끝나요.',
-              style: text,
-            ),
-            SizedBox(height: 32 * s),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _Step(
-                    s: s,
-                    palette: p,
-                    n: 1,
-                    title: '자동 점검',
-                    trailing: '${c.autoDone} / ${c.autoTotal}',
-                    body: '이 차가 어떤 장치를 지원하는지 앱이 알아서 확인해요. 할 일은 없어요.',
-                    progress: c.autoDone / c.autoTotal,
-                  ),
+      body: (s, p) => ListView(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _Step(
+                  s: s,
+                  palette: p,
+                  n: 1,
+                  title: '자동 점검',
+                  trailing: '${c.autoDone} / ${c.autoTotal}',
+                  progress: c.autoDone / c.autoTotal,
                 ),
-                SizedBox(width: 24 * s),
-                Expanded(
-                  child: _Step(
-                    s: s,
-                    palette: p,
-                    n: 2,
-                    title: '직접 점검',
-                    trailing: '최대 5개',
-                    body: '지원이 확인된 장치 중 몇 개를 골라, 버튼을 한 번씩 눌러 실제로 반응하는지 확인해요.',
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 24 * s),
-            RailCard(
-              s: s,
-              palette: p,
-              child: Text(
-                '점검 항목은 매번 무작위로 정해져요. 게임 힌트가 아니니 편하게 따라 해주세요. '
-                '작동하지 않는 장치는 게임에서 화면 터치로 대신 진행돼요.',
-                style: text.copyWith(fontSize: 26 * s),
               ),
-            ),
-          ],
-        );
-      },
+              SizedBox(width: 24 * s),
+              Expanded(
+                child: _Step(
+                  s: s,
+                  palette: p,
+                  n: 2,
+                  title: '직접 점검',
+                  icon: Icons.touch_app_outlined,
+                  trailing: '최대 5개',
+                  body: '버튼을 한 번씩 눌러요',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -134,16 +116,18 @@ class _Step extends StatelessWidget {
     required this.n,
     required this.title,
     required this.trailing,
-    required this.body,
+    this.icon,
+    this.body,
     this.progress,
   });
 
   final double s;
   final HomePalette palette;
   final int n;
+  final IconData? icon;
   final String title;
   final String trailing;
-  final String body;
+  final String? body;
   final double? progress;
 
   @override
@@ -175,24 +159,27 @@ class _Step extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              Text(
-                trailing,
-                style: TextStyle(
-                  fontSize: 26 * s,
-                  color: progress == 1
-                      ? HyundaiColors.activeBlue
-                      : p.description,
-                ),
+              StatusChip(
+                s: s,
+                palette: p,
+                label: trailing,
+                tone: progress == 1 ? ChipTone.ok : ChipTone.neutral,
               ),
             ],
           ),
-          SizedBox(height: 16 * s),
-          Text(
-            body,
-            style: TextStyle(fontSize: 26 * s, color: p.description),
-          ),
+          SizedBox(height: 28 * s),
+          if (body case final body?)
+            Row(
+              children: [
+                Icon(icon, size: 40 * s, color: p.title),
+                SizedBox(width: 14 * s),
+                Text(
+                  body,
+                  style: TextStyle(fontSize: 30 * s, color: p.title),
+                ),
+              ],
+            ),
           if (progress != null) ...[
-            SizedBox(height: 20 * s),
             LinearProgressIndicator(
               value: progress,
               minHeight: 10 * s,

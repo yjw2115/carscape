@@ -51,12 +51,9 @@ class CheckResultScreen extends StatelessWidget {
       ],
       overlay: (s, _) => fakeVehicleCorner(c.vehicle, s),
       body: (s, p) {
-        final sub = TextStyle(fontSize: 26 * s, color: p.description);
         return ListView(
           children: [
-            Text('플레이할 준비가 됐어요.', style: sub.copyWith(fontSize: 30 * s)),
             if (missing > 0) ...[
-              SizedBox(height: 24 * s),
               Container(
                 padding: EdgeInsets.all(28 * s),
                 decoration: BoxDecoration(
@@ -64,13 +61,29 @@ class CheckResultScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(22 * s),
                   border: Border.all(color: p.warningBorder, width: 2 * s),
                 ),
-                child: Text(
-                  '이 차에서 쓸 수 없는 장치가 $missing개 있어요. 필요한 순간에는 화면 터치로 대신 진행돼요.',
-                  style: TextStyle(fontSize: 28 * s, color: p.onWarning),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.touch_app_outlined,
+                      size: 44 * s,
+                      color: p.onWarning,
+                    ),
+                    SizedBox(width: 18 * s),
+                    Expanded(
+                      child: Text(
+                        '쓸 수 없는 장치 $missing개는 화면 터치로 대신해요',
+                        style: TextStyle(
+                          fontSize: 30 * s,
+                          fontWeight: FontWeight.w500,
+                          color: p.onWarning,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              SizedBox(height: 24 * s),
             ],
-            SizedBox(height: 24 * s),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -78,10 +91,9 @@ class CheckResultScreen extends StatelessWidget {
                   child: _Stat(
                     s: s,
                     palette: p,
-                    title: '자동 점검',
+                    title: '지원 장치',
                     value: c.supportedCount,
                     total: c.autoTotal,
-                    caption: '지원되는 장치',
                   ),
                 ),
                 SizedBox(width: 24 * s),
@@ -89,10 +101,9 @@ class CheckResultScreen extends StatelessWidget {
                   child: _Stat(
                     s: s,
                     palette: p,
-                    title: '직접 점검',
+                    title: '정상 작동',
                     value: c.verifiedCount,
                     total: c.plan.length,
-                    caption: '정상 반응',
                   ),
                 ),
                 SizedBox(width: 24 * s),
@@ -104,7 +115,14 @@ class CheckResultScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('직접 점검한 항목', style: sub),
+                        Text(
+                          '직접 점검',
+                          style: TextStyle(
+                            fontSize: 28 * s,
+                            fontWeight: FontWeight.w600,
+                            color: p.title,
+                          ),
+                        ),
                         for (final id in c.plan) ...[
                           SizedBox(height: 14 * s),
                           _itemLine(
@@ -140,24 +158,28 @@ class CheckResultScreen extends StatelessWidget {
         HyundaiColors.activeBlue,
         '',
       ),
-      DeviceStatus.fallback => (
-        Icons.touch_app_outlined,
-        p.onWarning,
-        ' · 화면 터치로',
-      ),
-      _ => (Icons.remove_rounded, p.description, skipped ? ' · 건너뜀' : ''),
+      DeviceStatus.fallback => (Icons.touch_app_outlined, p.onWarning, '화면 터치'),
+      _ => (Icons.remove_rounded, p.description, skipped ? '건너뜀' : ''),
     };
     return Row(
       children: [
         Icon(icon, size: 36 * s, color: color),
         SizedBox(width: 16 * s),
-        Text(
-          '$label$note',
-          style: TextStyle(
-            fontSize: 28 * s,
-            color: note.isEmpty ? p.title : p.description,
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 28 * s, color: p.title),
           ),
         ),
+        if (note.isNotEmpty)
+          Text(
+            note,
+            style: TextStyle(
+              fontSize: 26 * s,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
       ],
     );
   }
@@ -170,7 +192,6 @@ class _Stat extends StatelessWidget {
     required this.title,
     required this.value,
     required this.total,
-    required this.caption,
   });
 
   final double s;
@@ -178,7 +199,6 @@ class _Stat extends StatelessWidget {
   final String title;
   final int value;
   final int total;
-  final String caption;
 
   @override
   Widget build(BuildContext context) {
@@ -191,7 +211,11 @@ class _Stat extends StatelessWidget {
         children: [
           Text(
             title,
-            style: TextStyle(fontSize: 26 * s, color: p.description),
+            style: TextStyle(
+              fontSize: 28 * s,
+              fontWeight: FontWeight.w500,
+              color: p.title,
+            ),
           ),
           SizedBox(height: 8 * s),
           Text.rich(
@@ -209,10 +233,6 @@ class _Stat extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-          Text(
-            caption,
-            style: TextStyle(fontSize: 22 * s, color: p.description),
           ),
         ],
       ),
