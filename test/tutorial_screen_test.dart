@@ -160,7 +160,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 250));
       await tap(tester, 'hint');
       await tester.pump(const Duration(milliseconds: 250));
-      expect(find.textContaining('힌트를 열면 사용 횟수가'), findsNothing);
+      expect(find.textContaining('힌트를 열면'), findsNothing);
       expect(find.text('힌트 열기 · +1분'), findsNothing);
       expect(c.hintsUsed, 2);
       await tester.tap(find.text('해볼게요'));
@@ -178,6 +178,8 @@ void main() {
     const Size(640, 600),
     const Size(400, 800),
     const Size(1200, 720),
+    // The car's app area, where the story screen zooms in.
+    const Size(1682, 1210),
   ]) {
     testWidgets('every chapter lays out at ${size.width} x ${size.height}', (
       tester,

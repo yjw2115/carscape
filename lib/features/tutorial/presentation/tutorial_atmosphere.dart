@@ -152,7 +152,7 @@ class _GasInstrument extends StatelessWidget {
                 child: Text(
                   '가스 농도',
                   maxLines: 1,
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
                 ),
               ),
             ],
@@ -222,7 +222,8 @@ class _GasInstrument extends StatelessWidget {
                       '안전 0%',
                       style: TextStyle(
                         color: TutorialColors.success,
-                        fontSize: 11,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -257,7 +258,7 @@ class _TemperatureInstrument extends StatelessWidget {
           const Text(
             '실내 온도',
             maxLines: 1,
-            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
           ),
           const SizedBox(height: 6),
           Expanded(
@@ -304,7 +305,8 @@ class _TemperatureInstrument extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: TutorialColors.success,
-                              fontSize: 11,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -383,7 +385,7 @@ class _Thermometer extends CustomPainter {
             text: '${20 - 4 * i}',
             style: TextStyle(
               color: i == 1 ? TutorialColors.success : const Color(0xFFABBAC3),
-              fontSize: 10,
+              fontSize: 12,
             ),
           ),
           textDirection: TextDirection.ltr,
