@@ -7,6 +7,7 @@ environment:
   sdk: '>=3.10.0 <4.0.0'
 
 dependencies:
+  audioplayers: ^6.8.1
   flutter:
     sdk: flutter
   flutter_tts: ^4.2.5
@@ -21,6 +22,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/frozen_night/art/
+    - assets/frozen_night/voice/
   fonts:
     - family: NotoSansKR
       fonts:

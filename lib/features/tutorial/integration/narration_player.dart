@@ -1,4 +1,8 @@
-import 'package:flutter_tts/flutter_tts.dart';
+import 'dart:async';
+
+import 'package:audioplayers/audioplayers.dart';
+
+import '../domain/tutorial_script.dart';
 
 abstract interface class NarrationPlayer {
   Future<bool> speak(String text);
@@ -6,52 +10,90 @@ abstract interface class NarrationPlayer {
   Future<void> dispose();
 }
 
-/// Uses the OS/browser Korean voice during the playable preview. This is not
-/// the Pleos TTS SDK. A recorded-voice player can replace this interface later.
-class SystemNarrationPlayer implements NarrationPlayer {
-  SystemNarrationPlayer({this.volume = 1});
+/// Frozen Night's dialogue plays from bundled Korean clips on each platform.
+class FrozenNightNarrationPlayer implements NarrationPlayer {
+  static final _clips = <String, String>{
+    for (final entry in TutorialScript.dialogue.entries)
+      for (final (index, line) in entry.value.indexed)
+        line.text: '${entry.key.name}_${index + 1}.wav',
+    TutorialScript.coldComment: 'cold.wav',
+  };
 
-  /// 0–1, from the player's settings.
-  final double volume;
-  final FlutterTts _tts = FlutterTts();
-  Future<bool>? _initialization;
+  AudioPlayer? _player;
+  Future<void> _commands = Future.value();
+  StreamSubscription<void>? _completionSubscription;
+  Completer<bool>? _playing;
+  int _revision = 0;
+  bool _disposed = false;
 
-  Future<bool> _initialize() async {
-    try {
-      await _tts.awaitSpeakCompletion(true);
-      await _tts.setLanguage('ko-KR');
-      await _tts.setSpeechRate(0.46);
-      await _tts.setPitch(0.95);
-      await _tts.setVolume(volume);
-      final available = await _tts.isLanguageAvailable('ko-KR');
-      return available == true || available == 1;
-    } catch (_) {
-      return false;
-    }
+  Future<void> _queue(Future<void> Function() action) {
+    final next = _commands.then((_) => action());
+    _commands = next.catchError((Object _) {});
+    return next;
   }
 
   @override
   Future<bool> speak(String text) async {
+    final clip = _clips[text];
+    if (_disposed || clip == null) return false;
+
+    final request = ++_revision;
+    final completion = Completer<bool>();
     try {
-      if (!await (_initialization ??= _initialize())) return false;
-      final result = await _tts
-          .speak(text)
-          .timeout(const Duration(seconds: 40));
-      return result == 1;
+      await _queue(() async {
+        await _stopCurrent();
+        if (request != _revision) {
+          completion.complete(false);
+          return;
+        }
+        final player = _player ??= AudioPlayer();
+        _playing = completion;
+        _completionSubscription = player.onPlayerComplete.listen(
+          (_) {
+            if (!completion.isCompleted) completion.complete(true);
+          },
+          onError: (Object _) {
+            if (!completion.isCompleted) completion.complete(false);
+          },
+        );
+        await player.play(AssetSource('frozen_night/voice/$clip'));
+      });
+      return await completion.future.timeout(const Duration(seconds: 25));
     } catch (_) {
+      // A delayed failure must never interrupt a newer line.
+      if (request == _revision) await stop();
       return false;
     }
   }
 
+  Future<void> _stopCurrent() async {
+    await _completionSubscription?.cancel();
+    _completionSubscription = null;
+    final playing = _playing;
+    _playing = null;
+    if (playing != null && !playing.isCompleted) playing.complete(false);
+    await _player?.stop();
+  }
+
   @override
   Future<void> stop() async {
+    ++_revision;
     try {
-      await _tts.stop();
+      await _queue(_stopCurrent);
     } catch (_) {
-      /* Captions remain available. */
+      // The screen can continue showing captions when the audio device fails.
     }
   }
 
   @override
-  Future<void> dispose() => stop();
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    await stop();
+    try {
+      await _player?.dispose();
+    } finally {
+      _player = null;
+    }
+  }
 }

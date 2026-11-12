@@ -114,6 +114,8 @@ class TutorialController extends ChangeNotifier {
       windows.values.every((v) => v != null) &&
       doors.isNotEmpty &&
       doors.values.every((v) => v != null);
+  bool get _cabinOpen => doors.containsValue(true);
+  bool _isCabinDoor(String area) => area == 'REAR' || area.startsWith('ROW_');
   double get ventilationUnits =>
       windows.values.fold(0.0, (sum, v) => sum + (v ?? 0) / 20);
 
@@ -128,14 +130,15 @@ class TutorialController extends ChangeNotifier {
   double get coldLoss =>
       windows.values.fold(0.0, (sum, v) => sum + windowColdCost(v ?? 0)) +
       doors.values.where((v) => v == true).length * 10;
-  double get targetGas => (100 - ventilationUnits * 25).clamp(0.0, 100.0);
+  double get targetGas =>
+      _cabinOpen ? 0 : (100 - ventilationUnits * 25).clamp(0.0, 100.0);
   double get targetTemperature => baseTemperature - coldLoss;
   bool get ventilationBalanced =>
       ventilationKnown &&
       windows.values.every((v) => v! >= 19.9) &&
       ventilationUnits >= 3.999 &&
       coldLoss <= 4.001 &&
-      doors.values.every((v) => v == false);
+      !_cabinOpen;
 
   void enableVehicleMode() {
     liveVehicleMode = true;
@@ -291,11 +294,15 @@ class TutorialController extends ChangeNotifier {
         (!gloveboxSensorAvailable || gloveboxOpen)) {
       _enter(TutorialStage.ventilation);
     }
-    if (stage == TutorialStage.ventilation &&
-        coldLoss > 4.001 &&
-        !coldCommentPlayed) {
-      coldCommentPlayed = true;
-      ambientRevision++;
+    if (stage == TutorialStage.ventilation) {
+      if (_cabinOpen) {
+        gasLevel = 0;
+        _ventilationStable = 0;
+      }
+      if (coldLoss > 4.001 && !coldCommentPlayed) {
+        coldCommentPlayed = true;
+        ambientRevision++;
+      }
     }
   }
 
@@ -337,7 +344,7 @@ class TutorialController extends ChangeNotifier {
       if (inventory != null) {
         final previous = Map<String, bool?>.of(doors);
         doors.clear();
-        for (final id in inventory) {
+        for (final id in inventory.where(_isCabinDoor)) {
           doors[id] = previous[id];
         }
       }
@@ -346,8 +353,12 @@ class TutorialController extends ChangeNotifier {
       return;
     }
     if (input.kind == VehicleInputKind.issue) {
-      final before = paused;
       final key = input.data?['feature'] as String? ?? 'vehicle';
+      if (key.startsWith('door:') &&
+          !_isCabinDoor(key.substring('door:'.length))) {
+        return;
+      }
+      final before = paused;
       final message = input.data?['message'] as String? ?? '';
       if (message.isEmpty) {
         vehicleIssues.remove(key);
@@ -388,9 +399,9 @@ class TutorialController extends ChangeNotifier {
       case VehicleInputKind.wiper:
         wiperOn = on;
       case VehicleInputKind.door:
-        if (input.areaId != null) {
-          doors[input.areaId!] = input.known ? on : null;
-        }
+        final area = input.areaId;
+        if (area == null || !_isCabinDoor(area)) return;
+        doors[area] = input.known ? on : null;
       case VehicleInputKind.steering:
         steeringAngle = input.known ? input.value.toDouble() : null;
         if (stage == TutorialStage.escape &&

@@ -20,6 +20,7 @@ TutorialController liveController() {
           'ROW_2_LEFT',
           'ROW_2_RIGHT',
           'REAR',
+          'HOOD',
         ],
         'lightControl': true,
         'gloveboxOpen': false,
@@ -134,6 +135,34 @@ void main() {
     runFor(c, 20);
     expect(c.stage, TutorialStage.ventilation);
     window(c, CarSeat.driver, 20);
+    runFor(c, 6);
+    expect(c.stage, TutorialStage.escape);
+  });
+  test('frunk state and sensor errors are irrelevant to ventilation', () {
+    final c = liveController();
+    addTearDown(c.dispose);
+    c.testNavigate(1);
+    c.testNavigate(1);
+    c.testNavigate(1);
+    dialogue(c);
+    c.receive(
+      const TutorialVehicleInput(VehicleInputKind.door, 1, areaId: 'HOOD'),
+    );
+    c.receive(
+      const TutorialVehicleInput(
+        VehicleInputKind.issue,
+        0,
+        data: {'feature': 'door:HOOD', 'message': 'Unavailable'},
+      ),
+    );
+    runFor(c, 5);
+    expect(c.gasLevel, 100);
+    expect(c.cabinTemperature, 20);
+    expect(c.ambientRevision, 0);
+    expect(c.paused, isFalse);
+    for (final seat in CarSeat.values) {
+      window(c, seat, 20);
+    }
     runFor(c, 6);
     expect(c.stage, TutorialStage.escape);
   });

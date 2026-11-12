@@ -197,7 +197,25 @@ void main() {
         await dialogue();
         expect(find.text('지금 할 일'), findsNothing);
         expect(find.byKey(const Key('window-driver-down')), findsNothing);
+        expect(c.vehicleCapabilities['doors'], isNot(contains('HOOD')));
+        await put('/vehicle/body', {'frunk': 'true'});
+        await tester.pump(const Duration(seconds: 2));
+        expect(c.gasLevel, 100);
+        expect(c.cabinTemperature, 20);
+        expect(c.ambientRevision, 0);
         await capture('carscape-vehicle-gas');
+        await put('/vehicle/body', {'trunk': 'true'});
+        await until(() => c.doors['REAR'] == true, 'Actual rear trunk sensor');
+        expect(c.gasLevel, 0);
+        await until(() => c.cabinTemperature < 16, 'Rear trunk chills cabin');
+        expect(c.stage, TutorialStage.ventilation);
+        await put('/vehicle/body', {'trunk': 'false'});
+        await until(() => c.gasLevel >= 99, 'Gas returns with windows closed');
+        await put('/vehicle/body', {'door_fl': 'true'});
+        await until(() => c.doors['ROW_1_LEFT'] == true, 'Actual door sensor');
+        expect(c.gasLevel, 0);
+        expect(c.stage, TutorialStage.ventilation);
+        await put('/vehicle/body', {'door_fl': 'false'});
         await put('/vehicle/body', {'window_fl': '100'});
         await until(
           () => c.coldCommentPlayed && c.frost > .4,
@@ -210,19 +228,10 @@ void main() {
           'window_fr': '20',
           'window_rl': '20',
           'window_rr': '20',
-          'trunk': 'true',
         });
-        await until(() => c.doors['REAR'] == true, 'Actual trunk sensor');
-        await tester.pump(const Duration(seconds: 2));
-        expect(c.stage, TutorialStage.ventilation);
-        expect(c.coldLoss, greaterThanOrEqualTo(14));
-        await put('/vehicle/body', {'trunk': 'false', 'door_fl': 'true'});
-        await until(() => c.doors['ROW_1_LEFT'] == true, 'Actual door sensor');
-        expect(c.stage, TutorialStage.ventilation);
-        await put('/vehicle/body', {'door_fl': 'false'});
         await until(
           () => c.stage == TutorialStage.escape,
-          'Four windows and warm recovery',
+          'Four windows and warm recovery with frunk open',
         );
         await dialogue();
         await capture('carscape-vehicle-frost');
