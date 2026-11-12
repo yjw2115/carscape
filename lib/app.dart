@@ -69,7 +69,7 @@ class CarscapeApp extends StatelessWidget {
       (c) => Theme(
         data: tutorialTheme(),
         child: TutorialScreen(
-          narrationPlayer: SystemNarrationPlayer(
+          narrationPlayer: FrozenNightNarrationPlayer(
             volume: settings.narrationVolume,
           ),
           onFinished: (r) => Navigator.of(c).pop(r),
