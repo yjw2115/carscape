@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../core/rail_page.dart';
 import '../home/domain/escape_theme.dart';
 import '../home/presentation/home_palette.dart';
 import '../tutorial/domain/tutorial_models.dart';
@@ -9,70 +8,175 @@ import 'record_store.dart';
 String _dateText(DateTime d) =>
     '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}';
 
-/// 기록·순위: each team's best record per story.
-class RecordsPage extends StatefulWidget {
-  const RecordsPage({
+/// 기록·순위 half of the MY page: every story's title followed by its teams'
+/// best records, fastest first, in one container.
+class RecordsPanel extends StatelessWidget {
+  const RecordsPanel({
     super.key,
     required this.store,
+    required this.s,
+    required this.palette,
     this.stories = escapeThemes,
-    this.storyId,
+    this.highlightStory,
     this.highlightTeam,
   });
 
   final RecordStore store;
+  final double s;
+  final HomePalette palette;
   final List<EscapeTheme> stories;
-  final String? storyId;
 
-  /// Marks this team's row, e.g. right after saving a record.
+  /// Marks [highlightTeam]'s row in this story, e.g. right after saving.
+  final String? highlightStory;
   final String? highlightTeam;
 
   @override
-  State<RecordsPage> createState() => _RecordsPageState();
+  Widget build(BuildContext context) {
+    final p = palette;
+    final all = store.all;
+    return Container(
+      padding: EdgeInsets.fromLTRB(36 * s, 32 * s, 36 * s, 0),
+      decoration: BoxDecoration(
+        color: p.card,
+        borderRadius: BorderRadius.circular(32 * s),
+        border: Border.all(color: p.cardBorder, width: 1.5 * s),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.emoji_events_outlined,
+                size: 44 * s,
+                color: p.selectedBorder,
+              ),
+              SizedBox(width: 14 * s),
+              Text(
+                '기록·순위',
+                style: TextStyle(
+                  fontSize: 40 * s,
+                  fontWeight: FontWeight.w600,
+                  color: p.title,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8 * s),
+          Text(
+            '스토리마다 팀 최고 기록을 빠른 순서로 보여줘요',
+            style: TextStyle(fontSize: 24 * s, color: p.description),
+          ),
+          SizedBox(height: 20 * s),
+          Divider(height: 1.5 * s, thickness: 1.5 * s, color: p.cardBorder),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.symmetric(vertical: 28 * s),
+              children: [
+                for (final (i, story) in stories.indexed)
+                  Padding(
+                    padding: EdgeInsets.only(top: i == 0 ? 0 : 36 * s),
+                    child: _StoryRecords(
+                      s: s,
+                      palette: p,
+                      title: story.title,
+                      rows: ranking(all, story.id),
+                      highlightTeam: story.id == highlightStory
+                          ? highlightTeam
+                          : null,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _RecordsPageState extends State<RecordsPage> {
-  late String _story = widget.storyId ?? widget.stories.first.id;
+class _StoryRecords extends StatelessWidget {
+  const _StoryRecords({
+    required this.s,
+    required this.palette,
+    required this.title,
+    required this.rows,
+    required this.highlightTeam,
+  });
+
+  final double s;
+  final HomePalette palette;
+  final String title;
+  final List<PlayRecord> rows;
+  final String? highlightTeam;
 
   @override
   Widget build(BuildContext context) {
-    final rows = ranking(widget.store.all, _story);
-    return RailPage(
-      title: '기록·순위',
-      rail: (s, p) => [
-        for (final story in widget.stories)
-          RailAction(
-            key: Key('story-${story.id}'),
-            s: s,
-            palette: p,
-            height: 120,
-            label: story.title,
-            primary: story.id == _story,
-            onTap: () => setState(() => _story = story.id),
-          ),
-      ],
-      body: (s, p) {
-        final text = TextStyle(fontSize: 30 * s, color: p.title);
-        final sub = TextStyle(fontSize: 26 * s, color: p.description);
-        if (rows.isEmpty) {
-          return Text('아직 기록이 없어요. 스토리를 끝내면 팀 기록이 여기에 올라가요.', style: sub);
-        }
-        return ListView.separated(
-          itemCount: rows.length,
-          separatorBuilder: (_, _) => SizedBox(height: 16 * s),
-          itemBuilder: (_, i) {
-            final r = rows[i];
-            return RailCard(
-              s: s,
-              palette: p,
-              highlight: r.team == widget.highlightTeam,
+    final p = palette;
+    final text = TextStyle(fontSize: 30 * s, color: p.title);
+    final sub = TextStyle(fontSize: 22 * s, color: p.description);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 6 * s,
+              height: 30 * s,
+              decoration: BoxDecoration(
+                color: p.selectedBorder,
+                borderRadius: BorderRadius.circular(3 * s),
+              ),
+            ),
+            SizedBox(width: 14 * s),
+            Expanded(
+              child: Text(
+                title,
+                style: text.copyWith(
+                  fontSize: 32 * s,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (rows.isNotEmpty) Text('${rows.length}팀', style: sub),
+          ],
+        ),
+        SizedBox(height: 14 * s),
+        if (rows.isEmpty)
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 28 * s, vertical: 22 * s),
+            decoration: BoxDecoration(
+              color: p.checking,
+              borderRadius: BorderRadius.circular(20 * s),
+            ),
+            child: Text('아직 기록이 없어요', style: sub.copyWith(fontSize: 24 * s)),
+          )
+        else
+          for (final (i, r) in rows.indexed)
+            Container(
+              margin: EdgeInsets.only(top: i == 0 ? 0 : 10 * s),
+              padding: EdgeInsets.symmetric(
+                horizontal: 28 * s,
+                vertical: 18 * s,
+              ),
+              decoration: BoxDecoration(
+                color: p.checking,
+                borderRadius: BorderRadius.circular(20 * s),
+                border: Border.all(
+                  color: r.team == highlightTeam
+                      ? p.selectedBorder
+                      : Colors.transparent,
+                  width: 3 * s,
+                ),
+              ),
               child: Row(
                 children: [
                   SizedBox(
-                    width: 90 * s,
+                    width: 64 * s,
                     child: Text(
                       '${i + 1}',
                       style: text.copyWith(
-                        fontSize: 44 * s,
+                        fontSize: 38 * s,
                         fontWeight: FontWeight.w600,
                         color: i == 0 ? HyundaiColors.gold : p.title,
                       ),
@@ -96,17 +200,15 @@ class _RecordsPageState extends State<RecordsPage> {
                   Text(
                     formatTime(r.time),
                     style: text.copyWith(
-                      fontSize: 44 * s,
+                      fontSize: 38 * s,
                       fontWeight: FontWeight.w600,
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
                 ],
               ),
-            );
-          },
-        );
-      },
+            ),
+      ],
     );
   }
 }

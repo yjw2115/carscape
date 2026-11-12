@@ -43,7 +43,7 @@ void main() {
           brightness: brightness,
           onStart: (_, theme) async => started.add(theme),
           onTutorial: (_) async => opened.add('tutorial'),
-          onRecords: (_) async => opened.add('records'),
+          onMy: (_) async => opened.add('my'),
           onSettings: (_) async => opened.add('settings'),
           openVehicleCheck: (_) async => opened.add('check'),
         ),
@@ -133,11 +133,11 @@ void main() {
     await pumpHome(tester);
 
     await tester.tap(find.bySemanticsLabel('튜토리얼'));
-    await tester.tap(find.bySemanticsLabel('기록·순위'));
+    await tester.tap(find.bySemanticsLabel('기능점검'));
+    await tester.tap(find.bySemanticsLabel('MY'));
     await tester.tap(find.bySemanticsLabel('설정'));
-    await tester.tap(find.bySemanticsLabel('차량 점검'));
     await tester.pumpAndSettle();
-    expect(opened, ['tutorial', 'records', 'settings', 'check']);
+    expect(opened, ['tutorial', 'check', 'my', 'settings']);
   });
 
   testWidgets('vehicle check pauses gear monitoring until it returns', (
@@ -159,7 +159,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(parking.controller.hasListener, isTrue);
 
-    await tester.tap(find.bySemanticsLabel('차량 점검'));
+    await tester.tap(find.bySemanticsLabel('기능점검'));
     await tester.pumpAndSettle();
     expect(parking.controller.hasListener, isFalse);
 

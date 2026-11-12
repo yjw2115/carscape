@@ -25,8 +25,7 @@ class HomeScreen extends StatefulWidget {
     this.parkingSource,
     this.brightness,
     this.onTutorial,
-    this.onRecords,
-    this.onBadges,
+    this.onMy,
     this.onSettings,
     this.onStart,
     this.openVehicleCheck,
@@ -43,14 +42,15 @@ class HomeScreen extends StatefulWidget {
   /// Page callbacks complete when the player comes back. Gear monitoring
   /// pauses meanwhile, so the opened page may use the vehicle bridge.
   final Future<void> Function(BuildContext context)? onTutorial;
-  final Future<void> Function(BuildContext context)? onRecords;
-  final Future<void> Function(BuildContext context)? onBadges;
+
+  /// MY: 기록·순위 and badges on one page.
+  final Future<void> Function(BuildContext context)? onMy;
   final Future<void> Function(BuildContext context)? onSettings;
   final Future<void> Function(BuildContext context, EscapeTheme theme)? onStart;
 
   /// Opens the vehicle check (E2–E5, `openVehicleCheck` in features/entry)
-  /// and completes when the player comes back. Gear monitoring pauses
-  /// meanwhile.
+  /// from the rail's 기능점검 button and completes when the player comes
+  /// back. Gear monitoring pauses meanwhile.
   final Future<void> Function(BuildContext context)? openVehicleCheck;
 
   /// Why a theme can't be played yet (shown instead of the start button), or
@@ -202,16 +202,10 @@ class _HomeScreenState extends State<HomeScreen>
                               () => widget.onTutorial!(context),
                             )
                           : _openTutorial,
-                      onRecords: widget.onRecords != null
-                          ? () => _pauseParkingWhile(
-                              () => widget.onRecords!(context),
-                            )
-                          : () => comingSoon('기록·순위', '플레이 기록과 순위는 준비 중이에요.'),
-                      onBadges: widget.onBadges != null
-                          ? () => _pauseParkingWhile(
-                              () => widget.onBadges!(context),
-                            )
-                          : () => comingSoon('배지', '배지판은 준비 중이에요.'),
+                      onMy: widget.onMy != null
+                          ? () =>
+                                _pauseParkingWhile(() => widget.onMy!(context))
+                          : () => comingSoon('MY', '기록·순위와 배지는 준비 중이에요.'),
                       onSettings: widget.onSettings != null
                           ? () => _pauseParkingWhile(
                               () => widget.onSettings!(context),
@@ -221,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen>
                           ? _pauseParkingWhile(
                               () => widget.openVehicleCheck!(context),
                             )
-                          : comingSoon('차량 점검', '차량 점검 화면은 준비 중이에요.'),
+                          : comingSoon('기능점검', '기능점검 화면은 준비 중이에요.'),
                       onPrevious: () => _step(-1),
                       onNext: () => _step(1),
                     ),
