@@ -14,8 +14,6 @@ class ThemeArtPainter extends CustomPainter {
     canvas.save();
     canvas.scale(size.width / _design.width, size.height / _design.height);
     switch (art) {
-      case ThemeArt.frozenNight:
-        _frozenNight(canvas);
       case ThemeArt.downpour:
         _downpour(canvas);
       case ThemeArt.parkingLot:
@@ -95,69 +93,6 @@ class ThemeArtPainter extends CustomPainter {
       Paint()..color = const Color(0xFF0A2A47),
     );
     canvas.drawPath(surface, _stroke(const Color(0xB300AAD2), 3));
-  }
-
-  void _frozenNight(Canvas canvas) {
-    canvas.drawRect(
-      Offset.zero & _design,
-      Paint()..color = const Color(0xFF0C1828),
-    );
-    canvas.drawCircle(
-      const Offset(430, 110),
-      120,
-      Paint()..color = const Color(0xFF13263D),
-    );
-    final snow = Paint()..color = const Color(0xCCE8F1F8);
-    const flakes = [
-      Offset(40, 40),
-      Offset(130, 90),
-      Offset(220, 30),
-      Offset(310, 120),
-      Offset(500, 60),
-      Offset(80, 200),
-      Offset(260, 210),
-      Offset(400, 250),
-      Offset(530, 190),
-      Offset(170, 290),
-      Offset(470, 330),
-    ];
-    for (final f in flakes) {
-      canvas.drawCircle(f, 5, snow);
-    }
-    // Shelter with a warm window, far on the right.
-    canvas.drawPath(
-      Path()
-        ..moveTo(400, 404)
-        ..lineTo(400, 340)
-        ..lineTo(446, 302)
-        ..lineTo(492, 340)
-        ..lineTo(492, 404)
-        ..close(),
-      Paint()..color = const Color(0xFF16283C),
-    );
-    canvas.drawRect(
-      const Rect.fromLTWH(432, 356, 28, 36),
-      Paint()..color = const Color(0xCCF2A65A),
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(70, 432)
-        ..cubicTo(96, 388, 126, 368, 182, 366)
-        ..lineTo(292, 366)
-        ..cubicTo(340, 366, 370, 390, 392, 432)
-        ..close(),
-      Paint()..color = const Color(0xFF02060C),
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(0, 420)
-        ..cubicTo(120, 396, 240, 440, 360, 418)
-        ..cubicTo(440, 404, 500, 410, 560, 420)
-        ..lineTo(560, 540)
-        ..lineTo(0, 540)
-        ..close(),
-      Paint()..color = const Color(0xFFD9E6F0),
-    );
   }
 
   void _parkingLot(Canvas canvas) {

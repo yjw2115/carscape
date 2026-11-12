@@ -61,7 +61,13 @@ class ThemeCard extends StatelessWidget {
           children: [
             SizedBox(
               height: size.height * 540 / 1146,
-              child: CustomPaint(painter: ThemeArtPainter(theme.art)),
+              child: theme.photo != null
+                  ? Image.asset(
+                      theme.photo!,
+                      fit: BoxFit.cover,
+                      excludeFromSemantics: true,
+                    )
+                  : CustomPaint(painter: ThemeArtPainter(theme.art!)),
             ),
             Expanded(
               child: Padding(
