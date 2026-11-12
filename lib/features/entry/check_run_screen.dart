@@ -57,7 +57,7 @@ class _CheckRunScreenState extends State<CheckRunScreen> {
       if (id == null) return const SizedBox.shrink();
       final secs = c.waited.inSeconds;
       return RailPage(
-        title: '차량 점검 · ${c.index + 1} / ${c.plan.length}',
+        title: '기능점검 · ${c.index + 1} / ${c.plan.length}',
         backLabel: '뒤로',
         rail: (s, p) => [
           RailAction(
@@ -106,10 +106,30 @@ class _CheckRunScreenState extends State<CheckRunScreen> {
                         color: p.title,
                       ),
                     ),
-                    SizedBox(height: 16 * s),
-                    Text(
-                      _showWhere ? id.where : '',
-                      style: TextStyle(fontSize: 28 * s, color: p.description),
+                    SizedBox(height: 20 * s),
+                    // Asked for with 어디 있나요?; the space stays reserved
+                    // so the card doesn't jump.
+                    Opacity(
+                      opacity: _showWhere ? 1 : 0,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.place_outlined,
+                            size: 40 * s,
+                            color: p.title,
+                          ),
+                          SizedBox(width: 12 * s),
+                          Expanded(
+                            child: Text(
+                              id.where,
+                              style: TextStyle(
+                                fontSize: 32 * s,
+                                color: p.title,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     SizedBox(height: 40 * s),
                     _WaitBar(
@@ -155,10 +175,10 @@ class _WaitBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = palette;
     final (text, color, bg) = detected
-        ? ('정상 반응을 확인했어요', HyundaiColors.activeBlue, p.checking)
+        ? ('정상 작동', HyundaiColors.activeBlue, p.checking)
         : paused
         ? ('P단으로 바꾸면 이어서 점검해요', p.onWarning, p.warning)
-        : ('조작을 기다리는 중…', p.title, p.checking);
+        : ('조작 대기 중', p.title, p.checking);
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 28 * s, vertical: 24 * s),
       decoration: BoxDecoration(
@@ -200,7 +220,6 @@ class _WaitBar extends StatelessWidget {
   }
 }
 
-/// Upcoming items stay hidden until their turn.
 class _CheckList extends StatelessWidget {
   const _CheckList({required this.c, required this.s, required this.palette});
   final CheckController c;
@@ -208,27 +227,15 @@ class _CheckList extends StatelessWidget {
   final HomePalette palette;
 
   @override
-  Widget build(BuildContext context) {
-    final p = palette;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          '점검 목록',
-          style: TextStyle(fontSize: 26 * s, color: p.description),
-        ),
-        for (final (i, id) in c.plan.indexed) ...[
-          SizedBox(height: 14 * s),
-          _row(i, id),
-        ],
-        SizedBox(height: 14 * s),
-        Text(
-          '다음 항목은 차례가 되면 공개돼요',
-          style: TextStyle(fontSize: 22 * s, color: p.description),
-        ),
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (final (i, id) in c.plan.indexed) ...[
+        if (i > 0) SizedBox(height: 14 * s),
+        _row(i, id),
       ],
-    );
-  }
+    ],
+  );
 
   Widget _row(int i, DeviceId id) {
     final p = palette;
@@ -237,7 +244,7 @@ class _CheckList extends StatelessWidget {
         ? ('', p.description)
         : switch (c.session.devices[id]) {
             DeviceStatus.verified => ('정상', HyundaiColors.activeBlue),
-            DeviceStatus.fallback => ('화면 터치로', p.onWarning),
+            DeviceStatus.fallback => ('화면 터치', p.onWarning),
             _ when c.skipped.contains(id) => ('건너뜀', p.description),
             _ => ('확인 중', p.title),
           };
@@ -268,10 +275,18 @@ class _CheckList extends StatelessWidget {
               ),
             ),
           ),
-          Text(
-            note,
-            style: TextStyle(fontSize: 24 * s, color: color),
-          ),
+          // Upcoming items stay hidden until their turn.
+          if (open)
+            Text(
+              note,
+              style: TextStyle(
+                fontSize: 26 * s,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            )
+          else
+            Icon(Icons.lock_outline_rounded, size: 30 * s, color: color),
         ],
       ),
     );
@@ -293,7 +308,6 @@ class _RetryOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = palette;
     final canRetry = c.attempt < maxAttempts;
-    final text = TextStyle(fontSize: 28 * s, color: p.description);
     Widget button(Key key, String label, VoidCallback onTap, bool primary) =>
         Expanded(
           child: RailAction(
@@ -339,18 +353,17 @@ class _RetryOverlay extends StatelessWidget {
                       color: p.title,
                     ),
                   ),
-                  SizedBox(height: 20 * s),
-                  for (final tip in const [
-                    '버튼을 끝까지 눌렀는지 확인해주세요',
-                    '시동(전원)이 켜져 있어야 감지돼요',
-                    '신호가 늦게 들어올 수 있어요. 잠시 후 다시 눌러주세요',
-                  ])
-                    Text('·  $tip', style: text),
-                  SizedBox(height: 20 * s),
-                  Text('시도 ${c.attempt} / $maxAttempts', style: text),
+                  SizedBox(height: 24 * s),
                   Text(
-                    '"이 장치 없이 진행"을 고르면, 게임에서 이 장치가 필요한 순간 화면 터치로 대신 진행돼요.',
-                    style: text.copyWith(fontSize: 24 * s),
+                    '버튼을 끝까지 누르고, 시동이 켜져 있는지 확인해 주세요',
+                    style: TextStyle(fontSize: 30 * s, color: p.title),
+                  ),
+                  SizedBox(height: 24 * s),
+                  StatusChip(
+                    s: s,
+                    palette: p,
+                    label: '시도 ${c.attempt} / $maxAttempts',
+                    tone: canRetry ? ChipTone.neutral : ChipTone.warning,
                   ),
                   SizedBox(height: 36 * s),
                   Row(
@@ -361,7 +374,7 @@ class _RetryOverlay extends StatelessWidget {
                       ],
                       button(
                         const Key('without'),
-                        '이 장치 없이 진행',
+                        '화면 터치로 대신하기',
                         c.proceedWithout,
                         !canRetry,
                       ),

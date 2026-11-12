@@ -62,12 +62,7 @@ class RecordsPanel extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 8 * s),
-          Text(
-            '스토리마다 팀 최고 기록을 빠른 순서로 보여줘요',
-            style: TextStyle(fontSize: 24 * s, color: p.description),
-          ),
-          SizedBox(height: 20 * s),
+          SizedBox(height: 24 * s),
           Divider(height: 1.5 * s, thickness: 1.5 * s, color: p.cardBorder),
           Expanded(
             child: ListView(
@@ -114,7 +109,7 @@ class _StoryRecords extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = palette;
     final text = TextStyle(fontSize: 30 * s, color: p.title);
-    final sub = TextStyle(fontSize: 22 * s, color: p.description);
+    final sub = TextStyle(fontSize: 24 * s, color: p.description);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -138,7 +133,8 @@ class _StoryRecords extends StatelessWidget {
                 ),
               ),
             ),
-            if (rows.isNotEmpty) Text('${rows.length}팀', style: sub),
+            if (rows.isNotEmpty)
+              Text('${rows.length}팀', style: sub.copyWith(color: p.title)),
           ],
         ),
         SizedBox(height: 14 * s),
@@ -149,7 +145,7 @@ class _StoryRecords extends StatelessWidget {
               color: p.checking,
               borderRadius: BorderRadius.circular(20 * s),
             ),
-            child: Text('아직 기록이 없어요', style: sub.copyWith(fontSize: 24 * s)),
+            child: Text('기록 없음', style: sub.copyWith(fontSize: 26 * s)),
           )
         else
           for (final (i, r) in rows.indexed)

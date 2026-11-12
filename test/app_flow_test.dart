@@ -125,7 +125,7 @@ void main() {
       reason: 'check first',
     );
     await tapRail('뒤로');
-    expect(find.text('차량 점검 완료 · 모든 장치를 쓸 수 있어요'), findsOneWidget);
+    expect(find.text('완료'), findsOneWidget, reason: '기능점검 status');
     await tapRail('홈으로');
 
     await tapRail('튜토리얼');
@@ -151,7 +151,10 @@ void main() {
     }
     expect(find.byType(RailAction), findsOneWidget, reason: '홈으로 only');
     expect(
-      find.text('모은 배지 0 / ${escapeThemes.length + 1} · 금색 테두리 0'),
+      find.descendant(
+        of: find.byKey(const Key('badgeCount')),
+        matching: find.text('0 / ${escapeThemes.length + 1}'),
+      ),
       findsOneWidget,
     );
     await tapRail('홈으로');
@@ -305,7 +308,10 @@ void main() {
     await tester.tap(find.bySemanticsLabel('MY'));
     await tester.pumpAndSettle();
     expect(
-      find.text('모은 배지 1 / ${escapeThemes.length + 1} · 금색 테두리 0'),
+      find.descendant(
+        of: find.byKey(const Key('badgeCount')),
+        matching: find.text('1 / ${escapeThemes.length + 1}'),
+      ),
       findsOneWidget,
     );
     expect(find.text(keepWords('기본 테두리')), findsOneWidget);

@@ -129,13 +129,6 @@ class _BadgeShelfState extends State<BadgeShelf>
       for (final st in stories) (st.id, st.title, progress.lockedReason(st.id)),
     ];
     final earned = entries.where((e) => progress.badge(e.$1) != null).length;
-    final gold = entries
-        .where((e) => progress.badge(e.$1) == BadgeTier.gold)
-        .length;
-    final storiesEarned = stories
-        .where((st) => progress.badge(st.id) != null)
-        .length;
-    final sub = TextStyle(fontSize: 22 * s, color: p.description);
 
     return Stack(
       children: [
@@ -154,22 +147,23 @@ class _BadgeShelfState extends State<BadgeShelf>
                     color: p.selectedBorder,
                   ),
                   SizedBox(width: 14 * s),
-                  Text(
-                    '배지',
-                    style: TextStyle(
-                      fontSize: 40 * s,
-                      fontWeight: FontWeight.w600,
-                      color: p.title,
+                  Expanded(
+                    child: Text(
+                      '배지',
+                      style: TextStyle(
+                        fontSize: 40 * s,
+                        fontWeight: FontWeight.w600,
+                        color: p.title,
+                      ),
                     ),
                   ),
+                  StatusChip(
+                    key: const Key('badgeCount'),
+                    s: s,
+                    palette: p,
+                    label: '$earned / ${entries.length}',
+                  ),
                 ],
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(20 * s, 8 * s, 20 * s, 0),
-              child: Text(
-                '모은 배지 $earned / ${entries.length} · 금색 테두리 $gold',
-                style: sub.copyWith(fontSize: 24 * s),
               ),
             ),
             Expanded(
@@ -192,37 +186,39 @@ class _BadgeShelfState extends State<BadgeShelf>
                         ),
                       ),
                     ),
-                  SizedBox(height: 6 * s),
-                  Text(
-                    '시즌 1 · 스토리 ${stories.length}편을 모두 모으면 시즌 완성 특별 배지 '
-                    '($storiesEarned / ${stories.length})',
-                    style: sub.copyWith(color: p.title),
-                  ),
-                  SizedBox(height: 14 * s),
-                  Wrap(
-                    spacing: 24 * s,
-                    runSpacing: 10 * s,
-                    children: [
-                      for (final t in BadgeTier.values)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.hexagon_outlined,
-                              size: 26 * s,
-                              color: _tierColor(t),
+                  // How each border is earned, kept to one glance.
+                  for (final t in BadgeTier.values)
+                    Padding(
+                      padding: EdgeInsets.only(top: 10 * s),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.hexagon_outlined,
+                            size: 30 * s,
+                            color: _tierColor(t),
+                          ),
+                          SizedBox(width: 10 * s),
+                          Text(
+                            t.label,
+                            style: TextStyle(
+                              fontSize: 24 * s,
+                              fontWeight: FontWeight.w600,
+                              color: p.title,
                             ),
-                            SizedBox(width: 6 * s),
-                            Flexible(
-                              child: Text(
-                                keepWords('${t.label} · ${t.rule}'),
-                                style: sub,
+                          ),
+                          SizedBox(width: 12 * s),
+                          Expanded(
+                            child: Text(
+                              t.rule,
+                              style: TextStyle(
+                                fontSize: 24 * s,
+                                color: p.title,
                               ),
                             ),
-                          ],
-                        ),
-                    ],
-                  ),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -320,37 +316,37 @@ class _GlassBadgeCard extends StatelessWidget {
                             color: p.title,
                           ),
                         ),
-                        SizedBox(height: 6 * s),
-                        Text(
-                          keepWords(switch (t) {
-                            final t? => '${t.label} 테두리',
-                            null => lock ?? '도전해 보세요',
-                          }),
-                          style: TextStyle(
-                            fontSize: 22 * s,
-                            fontWeight: t == null
-                                ? FontWeight.w400
-                                : FontWeight.w500,
-                            color: t == null ? p.description : p.title,
+                        if (t != null) ...[
+                          SizedBox(height: 6 * s),
+                          Text(
+                            keepWords('${t.label} 테두리'),
+                            style: TextStyle(
+                              fontSize: 26 * s,
+                              fontWeight: FontWeight.w500,
+                              color: p.title,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
                   SizedBox(width: 16 * s),
-                  Icon(
-                    t == null
-                        ? Icons.lock_outline_rounded
-                        : Icons.check_circle_rounded,
-                    size: 36 * s,
-                    // The pale tier colors vanish on light glass; the medal's
-                    // rim still shows the tier there.
-                    color: t == null
-                        ? p.description
-                        : p == HomePalette.dark
-                        ? _tierColor(t)
-                        : p.selectedBorder,
-                  ),
+                  if (t != null)
+                    Icon(
+                      Icons.check_circle_rounded,
+                      size: 36 * s,
+                      // The pale tier colors vanish on light glass; the
+                      // medal's rim still shows the tier there.
+                      color: p == HomePalette.dark
+                          ? _tierColor(t)
+                          : p.selectedBorder,
+                    )
+                  else if (lock != null)
+                    Icon(
+                      Icons.lock_outline_rounded,
+                      size: 36 * s,
+                      color: p.title,
+                    ),
                 ],
               ),
             ),
@@ -486,9 +482,12 @@ class BadgeGetPage extends StatelessWidget {
                     ),
                   )
               else
-                Text(
-                  '튜토리얼을 마쳤어요. 이제 첫 번째 스토리 "얼어붙은 밤"을 플레이할 수 있어요.',
-                  style: TextStyle(fontSize: 28 * s, color: p.description),
+                StatusChip(
+                  s: s,
+                  palette: p,
+                  icon: Icons.lock_open_rounded,
+                  label: '얼어붙은 밤 열림',
+                  tone: ChipTone.ok,
                 ),
             ],
           ),

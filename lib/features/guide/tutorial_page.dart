@@ -50,34 +50,39 @@ class TutorialPage extends StatelessWidget {
       ),
     ],
     body: (s, p) {
-      final hint = TextStyle(fontSize: 28 * s, color: p.description);
       final missing = session.devices.keys
           .where((id) => !session.canUse(id))
           .length;
+      final checked = session.devices.isNotEmpty;
+      final done = progress.tutorialDone;
+      final title = TextStyle(
+        fontSize: 34 * s,
+        fontWeight: FontWeight.w600,
+        color: p.title,
+      );
       return ListView(
         children: [
-          Text('차의 버튼으로 퍼즐을 푸는 법을 익혀요.', style: hint),
-          SizedBox(height: 32 * s),
           RailCard(
             s: s,
             palette: p,
             child: Row(
               children: [
-                Icon(
-                  Icons.directions_car_outlined,
-                  size: 56 * s,
-                  color: p.title,
-                ),
+                Icon(Icons.build_outlined, size: 52 * s, color: p.title),
                 SizedBox(width: 24 * s),
-                Expanded(
-                  child: Text(
-                    session.devices.isEmpty
-                        ? '차량 점검 전이에요. 홈의 렌치 버튼으로 점검할 수 있어요.'
-                        : missing == 0
-                        ? '차량 점검 완료 · 모든 장치를 쓸 수 있어요'
-                        : '차량 점검 완료 · $missing개 장치는 화면 터치로 대신해요',
-                    style: TextStyle(fontSize: 30 * s, color: p.title),
-                  ),
+                Expanded(child: Text('기능점검', style: title)),
+                StatusChip(
+                  s: s,
+                  palette: p,
+                  label: !checked
+                      ? '점검 전'
+                      : missing == 0
+                      ? '완료'
+                      : '화면 터치 $missing개',
+                  tone: !checked
+                      ? ChipTone.neutral
+                      : missing == 0
+                      ? ChipTone.ok
+                      : ChipTone.warning,
                 ),
               ],
             ),
@@ -86,12 +91,26 @@ class TutorialPage extends StatelessWidget {
           RailCard(
             s: s,
             palette: p,
-            child: Text(
-              progress.tutorialDone
-                  ? '튜토리얼을 마쳤어요. 홈에서 첫 번째 스토리 "얼어붙은 밤"을 플레이할 수 있어요.'
-                  : '튜토리얼 내용은 준비 중이에요. 지금은 "튜토리얼 마치기"를 누르면 '
-                        '기본 훈련 배지를 받고 첫 번째 스토리가 열려요.',
-              style: hint,
+            child: Row(
+              children: [
+                BadgeMedal(
+                  id: tutorialBadgeId,
+                  tier: done ? BadgeTier.basic : null,
+                  size: 120 * s,
+                  palette: p,
+                ),
+                SizedBox(width: 32 * s),
+                Expanded(child: Text('기본 훈련 배지', style: title)),
+                StatusChip(
+                  s: s,
+                  palette: p,
+                  icon: done
+                      ? Icons.lock_open_rounded
+                      : Icons.lock_outline_rounded,
+                  label: done ? '얼어붙은 밤 열림' : '얼어붙은 밤 잠김',
+                  tone: done ? ChipTone.ok : ChipTone.neutral,
+                ),
+              ],
             ),
           ),
         ],
