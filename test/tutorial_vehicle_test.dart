@@ -29,6 +29,16 @@ TutorialController liveController() {
   );
   c.receive(const TutorialVehicleInput(VehicleInputKind.connection, 1));
   c.receive(const TutorialVehicleInput(VehicleInputKind.parking, 1));
+  c.receive(
+    const TutorialVehicleInput(
+      VehicleInputKind.passengerHeater,
+      0,
+      initial: true,
+    ),
+  );
+  c.receive(
+    const TutorialVehicleInput(VehicleInputKind.wiper, 0, initial: true),
+  );
   for (final seat in CarSeat.values) {
     light(c, seat, false, initial: true);
     c.receive(
@@ -166,6 +176,50 @@ void main() {
     runFor(c, 6);
     expect(c.stage, TutorialStage.escape);
   });
+  test(
+    'pre-existing heater, balanced windows and wiper need fresh actions',
+    () {
+      final c = liveController();
+      addTearDown(c.dispose);
+      c.receive(
+        const TutorialVehicleInput(VehicleInputKind.passengerHeater, 1),
+      );
+      c.receive(const TutorialVehicleInput(VehicleInputKind.wiper, 1));
+      for (final seat in CarSeat.values) {
+        window(c, seat, 20);
+      }
+      c.testNavigate(1);
+      c.testNavigate(1);
+      dialogue(c);
+      expect(c.stage, TutorialStage.glovebox);
+      c.receive(
+        const TutorialVehicleInput(VehicleInputKind.passengerHeater, 1),
+      );
+      expect(c.stage, TutorialStage.glovebox);
+      c.receive(
+        const TutorialVehicleInput(VehicleInputKind.passengerHeater, 0),
+      );
+      c.receive(
+        const TutorialVehicleInput(VehicleInputKind.passengerHeater, 1),
+      );
+      expect(c.stage, TutorialStage.ventilation);
+      dialogue(c);
+      runFor(c, 7);
+      expect(c.gasLevel, 0);
+      expect(c.stage, TutorialStage.ventilation);
+      window(c, CarSeat.driver, 0);
+      window(c, CarSeat.driver, 20);
+      runFor(c, 6);
+      expect(c.stage, TutorialStage.escape);
+      dialogue(c);
+      runFor(c, 4);
+      expect(c.visibility, 0);
+      c.receive(const TutorialVehicleInput(VehicleInputKind.wiper, 0));
+      c.receive(const TutorialVehicleInput(VehicleInputKind.wiper, 1));
+      runFor(c, 4);
+      expect(c.shelterVisible, isTrue);
+    },
+  );
   test('physical changes continue caching under narration and pause', () {
     final c = liveController();
     addTearDown(c.dispose);

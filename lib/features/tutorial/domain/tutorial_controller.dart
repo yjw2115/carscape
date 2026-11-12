@@ -24,6 +24,8 @@ class TutorialController extends ChangeNotifier {
   final Stopwatch _clock = Stopwatch();
   Duration _lastClock = Duration.zero;
   TutorialStage stage = TutorialStage.intro;
+  TutorialStage? _pendingChapter;
+  TutorialStage? get pendingChapter => _pendingChapter;
   int dialogueIndex = 0, dialogueRevision = 0;
   bool dialogueActive = false, manualPause = false, appInBackground = false;
   bool parked = true,
@@ -37,7 +39,14 @@ class TutorialController extends ChangeNotifier {
   Duration elapsed = Duration.zero, idleTime = Duration.zero;
   int hintsUsed = 0, windowMoves = 0, powerCount = 0;
   String feedback = '';
-  bool heaterOn = false, gloveboxOpen = false, wiperOn = false;
+  bool gloveboxOpen = false;
+  bool? _heaterState = false;
+  bool? _wiperState = false;
+  bool get heaterOn => _heaterState == true;
+  bool get wiperOn => _wiperState == true;
+  bool _heaterActivated = false;
+  bool _windowAdjusted = false;
+  bool _wiperActivated = false;
   int lightResetRevision = 0;
   bool lightsResetting = false;
   final Map<CarSeat, bool> lights = {for (final s in CarSeat.values) s: false};
@@ -65,6 +74,8 @@ class TutorialController extends ChangeNotifier {
   double visibility = 0;
   bool _steeringArmed = false;
   bool get shelterVisible => visibility >= .999;
+  bool get inLightPuzzle =>
+      stage == TutorialStage.blackout || stage == TutorialStage.power;
   int get step => switch (stage) {
     TutorialStage.intro || TutorialStage.blackout || TutorialStage.power => 1,
     TutorialStage.glovebox => 2,
@@ -98,7 +109,16 @@ class TutorialController extends ChangeNotifier {
       hasSensorProblem;
   bool get playing =>
       stage != TutorialStage.intro && stage != TutorialStage.result;
-  bool get acceptsInput => playing && !paused && !dialogueActive;
+  bool get _canAct =>
+      playing &&
+      !appInBackground &&
+      parked &&
+      connected &&
+      !hasSensorProblem &&
+      !dialogueActive &&
+      pendingChapter == null;
+  bool get acceptsInput => _canAct && !manualPause;
+  bool get canOpenHint => _canAct && canHint;
   bool get readyToStart =>
       !liveVehicleMode || (connected && parked && vehicleConfigured);
   List<DialogueLine> get dialogue => TutorialScript.dialogue[stage] ?? const [];
@@ -145,6 +165,8 @@ class TutorialController extends ChangeNotifier {
     connected = false;
     parked = false;
     _observedLights.updateAll((_, _) => null);
+    _heaterState = null;
+    _wiperState = null;
     windows.updateAll((_, _) => null);
     doors.updateAll((_, _) => null);
     steeringAngle = null;
@@ -154,10 +176,13 @@ class TutorialController extends ChangeNotifier {
     if (stage != TutorialStage.intro || !readyToStart) return;
     _clock.start();
     _lastClock = _clock.elapsed;
+    _resetPower();
     _enter(TutorialStage.blackout);
   }
 
   void _enter(TutorialStage next) {
+    final previous = stage;
+    _pendingChapter = null;
     stage = next;
     if (!visited.contains(next)) visited.add(next);
     feedback = '';
@@ -165,18 +190,21 @@ class TutorialController extends ChangeNotifier {
     dialogueIndex = 0;
     dialogueActive = dialogue.isNotEmpty;
     dialogueRevision++;
-    if (next == TutorialStage.power) {
+    if (next == TutorialStage.power && previous != TutorialStage.blackout) {
       _resetPower();
       if (!liveVehicleMode) feedback = '';
     }
+    if (next == TutorialStage.glovebox) _heaterActivated = false;
     if (next == TutorialStage.ventilation) {
       gasLevel = 100;
       cabinTemperature = baseTemperature;
       frost = 0;
       _ventilationStable = 0;
+      _windowAdjusted = false;
     }
     if (next == TutorialStage.escape) {
       visibility = 0;
+      _wiperActivated = false;
       _steeringArmed = false;
     }
     if (next == TutorialStage.result) {
@@ -189,6 +217,21 @@ class TutorialController extends ChangeNotifier {
       );
     }
     notifyListeners();
+  }
+
+  void _completeChapter(TutorialStage next) {
+    if (!options.waitForChapterClear) {
+      _enter(next);
+      return;
+    }
+    _pendingChapter = next;
+    notifyListeners();
+  }
+
+  void finishChapterClear(TutorialStage next) {
+    if (paused || _pendingChapter != next) return;
+    _lastClock = _clock.elapsed;
+    _enter(next);
   }
 
   void advanceDialogue() {
@@ -215,7 +258,7 @@ class TutorialController extends ChangeNotifier {
     final now = _clock.elapsed;
     final change = delta ?? now - _lastClock;
     _lastClock = now;
-    if (!playing || paused) return;
+    if (!playing || paused || pendingChapter != null) return;
     elapsed += change;
     if (dialogueActive) {
       notifyListeners();
@@ -235,15 +278,19 @@ class TutorialController extends ChangeNotifier {
         ((minimumTemperature - cabinTemperature) / 10).clamp(0.0, 1.0),
         seconds * .4,
       );
-      if (ventilationBalanced &&
+      if (_windowAdjusted &&
+          ventilationBalanced &&
           gasLevel <= .01 &&
           cabinTemperature >= minimumTemperature - .01) {
         _ventilationStable += seconds;
-        if (_ventilationStable >= 1.5) _enter(TutorialStage.escape);
+        if (_ventilationStable >= 1.5) _completeChapter(TutorialStage.escape);
       } else {
         _ventilationStable = 0;
       }
-    } else if (stage == TutorialStage.escape && wiperOn && visibility < 1) {
+    } else if (stage == TutorialStage.escape &&
+        _wiperActivated &&
+        wiperOn &&
+        visibility < 1) {
       visibility = (visibility + seconds / 3).clamp(0.0, 1.0);
       if (shelterVisible) {
         _steeringArmed = steeringAngle != null && steeringAngle!.abs() <= 10;
@@ -274,8 +321,8 @@ class TutorialController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void useHint() {
-    if (!acceptsInput || !canHint) return;
+  void useHint({bool fromPausedMenu = false}) {
+    if (!canOpenHint || (manualPause && !fromPausedMenu)) return;
     _hintLevels[stage] = hintLevel + 1;
     hintsUsed++;
     idleTime = Duration.zero;
@@ -290,13 +337,13 @@ class TutorialController extends ChangeNotifier {
       _resetPower();
     }
     if (stage == TutorialStage.glovebox &&
+        _heaterActivated &&
         heaterOn &&
         (!gloveboxSensorAvailable || gloveboxOpen)) {
-      _enter(TutorialStage.ventilation);
+      _completeChapter(TutorialStage.ventilation);
     }
     if (stage == TutorialStage.ventilation) {
       if (_cabinOpen) {
-        gasLevel = 0;
         _ventilationStable = 0;
       }
       if (coldLoss > 4.001 && !coldCommentPlayed) {
@@ -307,7 +354,7 @@ class TutorialController extends ChangeNotifier {
   }
 
   void confirmLightReset(int revision, {required bool success}) {
-    if (stage != TutorialStage.power || revision != lightResetRevision) return;
+    if (!inLightPuzzle || revision != lightResetRevision) return;
     if (success) {
       // The native result is returned only after all four physical OFF readbacks.
       _observedLights.updateAll((_, _) => false);
@@ -390,14 +437,28 @@ class TutorialController extends ChangeNotifier {
     final wasAccepting = acceptsInput;
     if (!liveVehicleMode && !wasAccepting) return;
     final on = input.known && input.value > 0;
+    final freshAction =
+        !input.initial && input.known && !paused && pendingChapter == null;
     final seat = input.seat;
     switch (input.kind) {
       case VehicleInputKind.passengerHeater:
-        heaterOn = on;
+        if (stage == TutorialStage.glovebox &&
+            freshAction &&
+            _heaterState == false &&
+            on) {
+          _heaterActivated = true;
+        }
+        _heaterState = input.known ? on : null;
       case VehicleInputKind.glovebox:
         gloveboxOpen = on && (heaterOn || liveVehicleMode);
       case VehicleInputKind.wiper:
-        wiperOn = on;
+        if (stage == TutorialStage.escape &&
+            freshAction &&
+            _wiperState == false &&
+            on) {
+          _wiperActivated = true;
+        }
+        _wiperState = input.known ? on : null;
       case VehicleInputKind.door:
         final area = input.areaId;
         if (area == null || !_isCabinDoor(area)) return;
@@ -421,6 +482,12 @@ class TutorialController extends ChangeNotifier {
           windows[seat] = input.known
               ? input.value.toDouble().clamp(0.0, 100.0)
               : null;
+          if (stage == TutorialStage.ventilation &&
+              freshAction &&
+              previous != null &&
+              previous != windows[seat]) {
+            _windowAdjusted = true;
+          }
           if (wasAccepting &&
               !input.initial &&
               stage == TutorialStage.ventilation &&
@@ -445,8 +512,8 @@ class TutorialController extends ChangeNotifier {
             } else {
               lights[seat] = true;
               powerCount++;
-              feedback = '${seat.label} 연결!';
-              if (powerCount == 4) _enter(TutorialStage.glovebox);
+              feedback = '';
+              if (powerCount == 4) _completeChapter(TutorialStage.glovebox);
             }
           }
         }

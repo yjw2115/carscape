@@ -144,6 +144,11 @@ void main() {
           'area': 'front_left',
           'value': 'true',
         });
+        await put('/vehicle/hvac', {
+          'power': 'true',
+          'fan_speed': '2',
+          'passenger_temp': '28',
+        });
         await tester.pumpWidget(
           MaterialApp(
             debugShowCheckedModeBanner: false,
@@ -152,6 +157,7 @@ void main() {
           ),
         );
         await until(() => c.readyToStart, 'SDK ready');
+        await until(() => c.heaterOn, 'Pre-existing heater ON');
         expect(c.vehicleCapabilities['lightControl'], true);
         expect(c.vehicleCapabilities['steering'], true);
         expect(c.vehicleCapabilities['doors'], contains('REAR'));
@@ -160,6 +166,9 @@ void main() {
         await tester.pump();
         await dialogue();
         await until(() => !c.lightsResetting, 'Pre-existing lamp OFF reset');
+        if (c.vehicleCapabilities['startupClimateOff'] == true) {
+          await until(() => !c.heaterOn, 'Startup climate OFF reset');
+        }
         await assertActualLightsOff();
         final firstReset = c.lightResetRevision;
         await put('/vehicle/reading-lights', {
@@ -185,6 +194,9 @@ void main() {
         }
         expect(c.stage, TutorialStage.glovebox);
         await dialogue();
+        expect(c.stage, TutorialStage.glovebox);
+        await put('/vehicle/hvac', {'power': 'false'});
+        await until(() => !c.heaterOn, 'Heater OFF before a new action');
         await put('/vehicle/hvac', {
           'power': 'true',
           'fan_speed': '2',
@@ -206,14 +218,16 @@ void main() {
         await capture('carscape-vehicle-gas');
         await put('/vehicle/body', {'trunk': 'true'});
         await until(() => c.doors['REAR'] == true, 'Actual rear trunk sensor');
-        expect(c.gasLevel, 0);
+        expect(c.gasLevel, greaterThan(0));
         await until(() => c.cabinTemperature < 16, 'Rear trunk chills cabin');
+        await until(() => c.gasLevel == 0, 'Rear trunk gradually clears gas');
         expect(c.stage, TutorialStage.ventilation);
         await put('/vehicle/body', {'trunk': 'false'});
         await until(() => c.gasLevel >= 99, 'Gas returns with windows closed');
         await put('/vehicle/body', {'door_fl': 'true'});
         await until(() => c.doors['ROW_1_LEFT'] == true, 'Actual door sensor');
-        expect(c.gasLevel, 0);
+        expect(c.gasLevel, greaterThan(0));
+        await until(() => c.gasLevel == 0, 'Door gradually clears gas');
         expect(c.stage, TutorialStage.ventilation);
         await put('/vehicle/body', {'door_fl': 'false'});
         await put('/vehicle/body', {'window_fl': '100'});

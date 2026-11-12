@@ -23,7 +23,7 @@ import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
-/** Reads vehicle observations; the light chapter alone may switch reading lights OFF. */
+/** Observes vehicle inputs and clears supported puzzle controls at story startup. */
 @Suppress("DEPRECATION") // SDK 2.3.2 Gear read is deprecated, not private; fail closed if unavailable.
 class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : EventChannel.StreamHandler {
     private val appContext = context.applicationContext
@@ -46,6 +46,7 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
     private var resetResult: MethodChannel.Result? = null
     private var resetToken = 0
     private val lightOffActions = linkedMapOf<String, (() -> Unit, (Exception) -> Unit) -> Unit>()
+    private var climateOff: (() -> Unit)? = null
     private val poll = object : Runnable {
         override fun run() {
             if (vehicle == null || sink == null) return
@@ -69,6 +70,14 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
                     result.success(null)
                 }
                 "resetReadingLights" -> resetReadingLights(result)
+                "prepareStoryClimate" -> {
+                    if (lightPuzzleActive && values["parking:global"] == true) {
+                        try { climateOff?.invoke() } catch (error: Exception) {
+                            Log.w(TAG, "Startup climate reset unavailable", error)
+                        }
+                    }
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -258,6 +267,7 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
         // Require verified airflow plus a warm set temperature; AC-off alone is not heating.
         val hvacChecks = mutableMapOf<String, Set<SeatArea>>()
         var hvacPending = 3
+        var powerWritable = false
         fun hvacDone() {
             if (--hvacPending != 0) return
             fun zone(feature: String): SeatArea? {
@@ -267,6 +277,16 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
             val powerArea = zone("power")
             val fanArea = zone("fan")
             val temperatureArea = zone("temperature")
+            capabilities["startupClimateOff"] = powerWritable && powerArea != null
+            if (powerWritable && powerArea != null) {
+                climateOff = {
+                    hvac.setHvacPower(powerArea, false, { _, _ ->
+                        main.post { if (active(session)) readers["heaterPower"]?.invoke() }
+                    }, { error ->
+                        Log.w(TAG, "Startup climate reset unavailable", error)
+                    })
+                }
+            }
             capabilities["heater"] = powerArea != null && fanArea != null && temperatureArea != null
             capabilities["heaterArea"] = temperatureArea?.let(::seatId) ?: ""
             if (powerArea == null || fanArea == null || temperatureArea == null) issue("heater", "공조 전원·풍량·온도 지원을 확인할 수 없습니다")
@@ -318,7 +338,13 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
             }
             checkFinished(session)
         }
-        hvac.checkHvacPowerCapabilities(onComplete = { config, areas -> main.post { if (active(session)) { hvacChecks["power"] = if (readable(config)) areas.toSet() else emptySet(); hvacDone() } } }, onFailed = { main.post { issue("heaterPower", it.message ?: "지원 확인 실패"); hvacDone() } })
+        hvac.checkHvacPowerCapabilities(onComplete = { config, areas -> main.post {
+            if (active(session)) {
+                powerWritable = config.accessType == AccessType.READ_WRITE
+                hvacChecks["power"] = if (readable(config)) areas.toSet() else emptySet()
+                hvacDone()
+            }
+        } }, onFailed = { main.post { issue("heaterPower", it.message ?: "지원 확인 실패"); hvacDone() } })
         hvac.checkHvacFanSpeedCapabilities(onComplete = { config, areas -> main.post { if (active(session)) { hvacChecks["fan"] = if (readable(config)) areas.keys else emptySet(); hvacDone() } } }, onFailed = { main.post { issue("heaterFan", it.message ?: "지원 확인 실패"); hvacDone() } })
         hvac.checkHvacTemperatureCapabilities(onComplete = { config: CapabilityConfig, areas: Map<SeatArea, AreaBounds<Float>> -> main.post { if (active(session)) { hvacChecks["temperature"] = if (readable(config)) areas.keys else emptySet(); hvacDone() } } }, onFailed = { main.post { issue("heaterTemperature", it.message ?: "지원 확인 실패"); hvacDone() } })
 
@@ -434,7 +460,7 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
     }
 
     private fun resetReadingLights(result: MethodChannel.Result) {
-        if (!lightPuzzleActive || lightOffActions.size != 4) {
+        if (!lightPuzzleActive || values["parking:global"] != true || lightOffActions.size != 4) {
             result.error("unavailable", "조명 초기화를 사용할 수 없습니다", null)
             return
         }
@@ -445,6 +471,10 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
         val deadline = android.os.SystemClock.uptimeMillis() + 5000
         fun attempt() {
             if (token != resetToken || !active(session) || !lightPuzzleActive) return
+            if (values["parking:global"] != true) {
+                cancelLightReset()
+                return
+            }
             var remaining = 4
             var failed = false
             fun finished(success: Boolean) {
@@ -478,6 +508,7 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
         lightPuzzleActive = false
         cancelLightReset()
         lightOffActions.clear()
+        climateOff = null
         ++generation
         main.removeCallbacks(poll)
         cleanup.toList().forEach { try { it() } catch (_: Exception) {} }

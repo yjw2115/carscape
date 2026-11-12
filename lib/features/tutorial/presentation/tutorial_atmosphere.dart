@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -9,6 +10,7 @@ const frozenNightCabin = 'assets/frozen_night/art/cabin.jpg';
 const frozenNightRoad = 'assets/frozen_night/art/road.jpg';
 const _frostAsset = 'assets/frozen_night/art/frost.jpg';
 const _snowAsset = 'assets/frozen_night/art/windshield_snow.jpg';
+const _gasAsset = 'assets/frozen_night/art/cabin_gas.png';
 
 class VentilationDashboard extends StatelessWidget {
   const VentilationDashboard({super.key, required this.controller});
@@ -34,6 +36,15 @@ class VentilationDashboard extends StatelessWidget {
           ),
         ),
       ),
+      if (controller.gasLevel > 0)
+        Positioned.fill(
+          child: IgnorePointer(
+            child: _SmokeDrift(
+              key: const Key('cabin-gas-overlay'),
+              fraction: (controller.gasLevel / 100).clamp(0.0, 1.0),
+            ),
+          ),
+        ),
       if (controller.frost > .001)
         Positioned.fill(
           child: Opacity(
@@ -91,6 +102,126 @@ class VentilationDashboard extends StatelessWidget {
         },
       ),
     ],
+  );
+}
+
+class _SmokeDrift extends StatefulWidget {
+  const _SmokeDrift({super.key, required this.fraction});
+
+  final double fraction;
+
+  @override
+  State<_SmokeDrift> createState() => _SmokeDriftState();
+}
+
+class _SmokeDriftState extends State<_SmokeDrift>
+    with SingleTickerProviderStateMixin {
+  late final _drift = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 17),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _drift.stop();
+    } else if (!_drift.isAnimating) {
+      _drift.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _drift.dispose();
+    super.dispose();
+  }
+
+  Shader _plumeMask(Rect bounds, Offset center, double strength) {
+    // Keep a broad fade above each plume's denser core as it settles down.
+    final density = strength * (widget.fraction * 3.5).clamp(0.0, 1.0);
+    final ellipse =
+        Matrix4.diagonal3Values(bounds.width * .96, bounds.height * 1.22, 1)
+          ..setTranslationRaw(
+            bounds.left + bounds.width * center.dx,
+            bounds.top + bounds.height * (center.dy + 1 - widget.fraction),
+            0,
+          );
+    return ui.Gradient.radial(
+      Offset.zero,
+      1,
+      [
+        Colors.white.withValues(alpha: density),
+        Colors.white.withValues(alpha: density),
+        Colors.white.withValues(alpha: density * .36),
+        Colors.transparent,
+      ],
+      const [0, .77, .89, 1],
+      TileMode.clamp,
+      ellipse.storage,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final width = constraints.maxWidth;
+      final height = constraints.maxHeight;
+      return RepaintBoundary(
+        child: AnimatedBuilder(
+          animation: _drift,
+          child: Image.asset(
+            _gasAsset,
+            fit: BoxFit.cover,
+            excludeFromSemantics: true,
+          ),
+          builder: (context, smoke) {
+            final phase = _drift.value * math.pi * 2;
+            final left = math.sin(phase);
+            final right = math.cos(phase + .8);
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: (bounds) => _plumeMask(
+                    bounds,
+                    Offset(.26 + .10 * left, .99 + .04 * math.cos(phase)),
+                    .62,
+                  ),
+                  child: Transform.translate(
+                    offset: Offset(
+                      left * width * .085,
+                      math.cos(phase) * height * .075,
+                    ),
+                    child: Transform.scale(scale: 1.22, child: smoke),
+                  ),
+                ),
+                ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: (bounds) => _plumeMask(
+                    bounds,
+                    Offset(.76 + .09 * right, 1.08 + .05 * math.sin(phase * 2)),
+                    .49,
+                  ),
+                  child: Transform.translate(
+                    offset: Offset(
+                      right * width * .11,
+                      math.sin(phase * 2) * height * .07,
+                    ),
+                    child: Transform.flip(
+                      flipX: true,
+                      flipY: true,
+                      child: Transform.scale(scale: 1.28, child: smoke),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    },
   );
 }
 

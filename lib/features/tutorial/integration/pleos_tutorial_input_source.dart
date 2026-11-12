@@ -57,6 +57,10 @@ class PleosTutorialInputSource implements TutorialInputSource {
       _methods.invokeMethod<void>('setLightPuzzleActive', active);
 
   @override
+  Future<void> prepareStoryClimate() =>
+      _methods.invokeMethod<void>('prepareStoryClimate');
+
+  @override
   Future<void> resetReadingLights() =>
       _methods.invokeMethod<void>('resetReadingLights');
 }

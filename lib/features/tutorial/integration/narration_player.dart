@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../domain/tutorial_script.dart';
 
@@ -8,6 +10,67 @@ abstract interface class NarrationPlayer {
   Future<bool> speak(String text);
   Future<void> stop();
   Future<void> dispose();
+}
+
+NarrationPlayer createFrozenNightNarration({double volume = 1}) {
+  final bundled = FrozenNightNarrationPlayer(volume: volume);
+  // The vehicle Speech Service has no per-utterance volume API.
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android || volume < 1) {
+    return bundled;
+  }
+  return PleosNarrationPlayer(fallback: bundled);
+}
+
+class PleosNarrationPlayer implements NarrationPlayer {
+  PleosNarrationPlayer({required this.fallback});
+
+  static const _channel = MethodChannel('io.carscape/pleos_narration');
+  final NarrationPlayer fallback;
+  bool _unavailable = false;
+  bool _disposed = false;
+  int _revision = 0;
+
+  @override
+  Future<bool> speak(String text) async {
+    if (_disposed) return false;
+    final revision = ++_revision;
+    if (!_unavailable) {
+      try {
+        final played = await _channel.invokeMethod<bool>('speak', text);
+        if (_disposed || revision != _revision) return false;
+        if (played == true) return true;
+      } on PlatformException {
+        if (_disposed || revision != _revision) return false;
+      } on MissingPluginException {
+        if (_disposed || revision != _revision) return false;
+      }
+      _unavailable = true;
+    }
+    return fallback.speak(text);
+  }
+
+  Future<void> _command(String method) async {
+    try {
+      await _channel.invokeMethod<void>(method);
+    } on PlatformException {
+      // Bundled narration remains available.
+    } on MissingPluginException {
+      // The native channel is available only on Android.
+    }
+  }
+
+  @override
+  Future<void> stop() async {
+    _revision++;
+    await Future.wait([_command('stop'), fallback.stop()]);
+  }
+
+  @override
+  Future<void> dispose() async {
+    _disposed = true;
+    _revision++;
+    await Future.wait([_command('release'), fallback.dispose()]);
+  }
 }
 
 /// Frozen Night's dialogue plays from bundled Korean clips on each platform.
