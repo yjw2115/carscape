@@ -82,7 +82,12 @@ class _CarscapeAppState extends State<CarscapeApp> with WidgetsBindingObserver {
     if (context.mounted) {
       await _push<void>(
         context,
-        (_) => TutorialPage(session: session, progress: progress),
+        (_) => TutorialPage(
+          vehicle: vehicle,
+          session: session,
+          progress: progress,
+          speak: systemSpeaker(volume: settings.narrationVolume),
+        ),
       );
     }
   }

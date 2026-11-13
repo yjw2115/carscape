@@ -5,11 +5,14 @@ import 'package:carscape/app.dart';
 import 'package:carscape/core/game_session.dart';
 import 'package:carscape/core/rail_page.dart';
 import 'package:carscape/features/badges/progress.dart';
+import 'package:carscape/features/guide/lesson_controller.dart';
+import 'package:carscape/features/guide/lessons.dart';
 import 'package:carscape/features/home/domain/escape_theme.dart';
 import 'package:carscape/features/records/record_store.dart';
 import 'package:carscape/features/records/records_page.dart';
 import 'package:carscape/features/settings/app_settings.dart';
 import 'package:carscape/features/tutorial/domain/tutorial_models.dart';
+import 'package:carscape/vehicle/device_catalog.dart';
 import 'package:carscape/vehicle/fake_vehicle_service.dart';
 
 PlayRecord rec(String team, int seconds, {String story = 's1', int day = 1}) =>
@@ -125,7 +128,7 @@ void main() {
       reason: 'check first',
     );
     await tapRail('뒤로');
-    expect(find.text('완료'), findsOneWidget, reason: '기능점검 status');
+    expect(find.text(tutorialLessons.first.title), findsOneWidget);
     await tapRail('홈으로');
 
     await tapRail('튜토리얼');
@@ -275,9 +278,10 @@ void main() {
     addTearDown(tester.view.reset);
     final prefs = await SharedPreferences.getInstance();
     final progress = Progress(prefs);
+    final car = FakeVehicleService();
     await tester.pumpWidget(
       CarscapeApp(
-        vehicle: FakeVehicleService(),
+        vehicle: car,
         session: GameSession()..devices.clear(),
         records: RecordStore(prefs),
         settings: AppSettings(prefs),
@@ -292,8 +296,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel('뒤로'), warnIfMissed: false);
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('finishTutorial')));
-    await tester.pumpAndSettle();
+    // Three easy questions, each solved by turning one function on.
+    for (final lesson in tutorialLessons) {
+      expect(find.byKey(const Key('lessonNext')), findsNothing);
+      car.set(lesson.device, 1);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('lessonNext')));
+      await tester.pumpAndSettle();
+    }
     expect(find.text('새 배지를 획득했어요!'), findsOneWidget);
     await tester.tap(find.byKey(const Key('badgeContinue')));
     await tester.pumpAndSettle();
@@ -316,4 +326,69 @@ void main() {
     );
     expect(find.text(keepWords('기본 테두리')), findsOneWidget);
   });
+
+  test('lessons never use a device from 얼어붙은 밤', () {
+    const story = {
+      DeviceId.cabinLight,
+      DeviceId.passengerHeater,
+      DeviceId.fanSpeed,
+      DeviceId.window,
+      DeviceId.door,
+      DeviceId.wiper,
+      DeviceId.steering,
+    };
+    for (final l in tutorialLessons) {
+      expect(story, isNot(contains(l.device)), reason: l.title);
+    }
+  });
+
+  test(
+    'lesson: solved by turning on; already on must go off then on',
+    () async {
+      final car = FakeVehicleService()..set(DeviceId.recirculation, 1);
+      final c = LessonController(car, GameSession());
+      await pumpEventQueue();
+      expect(c.alreadyOn, isTrue);
+
+      car.set(DeviceId.recirculation, 0);
+      await pumpEventQueue();
+      expect(c.solved, isFalse);
+      car.set(DeviceId.recirculation, 1);
+      await pumpEventQueue();
+      expect(c.solved, isTrue);
+
+      expect(c.next(), isTrue);
+      expect(c.lesson.device, DeviceId.rearDefrost);
+      c.dispose();
+    },
+  );
+
+  test('lesson: presses outside P do not count', () async {
+    final car = FakeVehicleService();
+    final c = LessonController(car, GameSession());
+    await pumpEventQueue();
+    car.set(DeviceId.gear, 0);
+    car.set(DeviceId.recirculation, 1);
+    await pumpEventQueue();
+    expect(c.solved, isFalse);
+    car.set(DeviceId.gear, gearPark);
+    car.set(DeviceId.recirculation, 0);
+    car.set(DeviceId.recirculation, 1);
+    await pumpEventQueue();
+    expect(c.solved, isTrue);
+    c.dispose();
+  });
+
+  test(
+    'lesson: a device the check marked unusable is solved on screen',
+    () async {
+      final session = GameSession()
+        ..devices[DeviceId.recirculation] = DeviceStatus.fallback;
+      final c = LessonController(FakeVehicleService(), session);
+      expect(c.byTouch, isTrue);
+      c.solveByTouch();
+      expect(c.solved, isTrue);
+      c.dispose();
+    },
+  );
 }
