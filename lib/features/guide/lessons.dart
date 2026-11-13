@@ -53,7 +53,8 @@ const tutorialLessons = [
   // 3. The clue is only in what a passenger says.
   Lesson(
     device: DeviceId.airCon,
-    icon: Icons.ac_unit_rounded,
+    // Not the A/C snowflake: the answer must come from the line.
+    icon: Icons.record_voice_over_outlined,
     title: '대사를 잘 들어요',
     question: '',
     speech: '차 안이 덥고 눅눅하네… 에어컨 좀 켜 줄래?',
