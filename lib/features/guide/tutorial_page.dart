@@ -199,12 +199,12 @@ class _TutorialPageState extends State<TutorialPage> {
                   ],
                 ),
               ),
-              if (c.solved) ...[
+              if (c.solved && l.explanation != null) ...[
                 SizedBox(height: 24 * s),
                 RailCard(
                   s: s,
                   palette: p,
-                  child: Text(keepWords(l.explanation), style: text),
+                  child: Text(keepWords(l.explanation!), style: text),
                 ),
               ],
             ],
@@ -244,7 +244,7 @@ class _SpeechBubble extends StatelessWidget {
             borderRadius: BorderRadius.circular(24 * s),
           ),
           child: Text(
-            keepWords('조수석: “$text”'),
+            keepWords('“$text”'),
             style: TextStyle(fontSize: 34 * s, color: palette.onChip),
           ),
         ),

@@ -11,7 +11,7 @@ class Lesson {
     required this.title,
     required this.question,
     required this.hint,
-    required this.explanation,
+    this.explanation,
     this.speech,
   });
 
@@ -27,8 +27,8 @@ class Lesson {
   final String? speech;
   final String hint;
 
-  /// Shown after solving: what the function does in real driving.
-  final String explanation;
+  /// Shown after solving, if any.
+  final String? explanation;
 }
 
 const tutorialLessons = [
@@ -39,7 +39,6 @@ const tutorialLessons = [
     title: '터널에 들어가요',
     question: '곧 긴 터널이에요. 바깥 공기가 들어오지 않게 내·외기 순환 버튼을 눌러 내기로 바꿔 볼까요?',
     hint: '공조 버튼 줄에서 차 안에 화살표가 돌고 있는 모양의 버튼이에요.',
-    explanation: '내기 모드는 바깥 공기를 막아요. 터널이나 매연이 심한 길에서 쓰면 좋아요.',
   ),
   // 2. The button isn't named: use the hint.
   Lesson(
@@ -48,7 +47,6 @@ const tutorialLessons = [
     title: '뒤가 안 보여요',
     question: '뒷유리에 김이 서려서 뒤가 잘 안 보여요. 어떻게 하면 좋을까요?\n모르겠으면 왼쪽의 힌트를 눌러 보세요.',
     hint: '뒷유리 열선을 켜요. 네모 안에 물결 모양이 있는 버튼이에요.',
-    explanation: '뒷유리 열선은 유리를 데워 김과 성에를 없애요. 비 오는 날이나 추운 아침에 써요.',
   ),
   // 3. The clue is only in what a passenger says.
   Lesson(
