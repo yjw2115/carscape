@@ -1,5 +1,5 @@
 /// Illustration drawn at the top of a theme card.
-enum ThemeArt { frozenNight, downpour, parkingLot, missingDriver }
+enum ThemeArt { downpour, parkingLot, missingDriver }
 
 /// A playable escape theme shown on the home carousel.
 class EscapeTheme {
@@ -8,8 +8,9 @@ class EscapeTheme {
     required this.title,
     required this.description,
     required this.chips,
-    required this.art,
-  });
+    this.art,
+    this.photo,
+  }) : assert(art != null || photo != null);
 
   final String id;
   final String title;
@@ -17,7 +18,12 @@ class EscapeTheme {
 
   /// Short facts shown above the start button, e.g. play time and players.
   final List<String> chips;
-  final ThemeArt art;
+
+  /// Drawn illustration for the card top, used when there is no [photo].
+  final ThemeArt? art;
+
+  /// Image asset for the card top, e.g. the story's own opening scene.
+  final String? photo;
 }
 
 /// Story id of "얼어붙은 밤", also used as its record key.
@@ -32,7 +38,8 @@ const escapeThemes = <EscapeTheme>[
     title: '얼어붙은 밤',
     description: '눈보라 속에 멈춰 버린 차. 완전히 얼어붙기 전에 고치고 탈출해야 한다.',
     chips: ['약 15분', '2~4인', '실패 없음'],
-    art: ThemeArt.frozenNight,
+    // Same image as the story's opening screen (frozenNightCabin).
+    photo: 'assets/frozen_night/art/cabin.jpg',
   ),
   EscapeTheme(
     id: 'case01',
