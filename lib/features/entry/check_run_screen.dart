@@ -106,6 +106,11 @@ class _CheckRunScreenState extends State<CheckRunScreen> {
                         color: p.title,
                       ),
                     ),
+                    SizedBox(height: 12 * s),
+                    Text(
+                      '조금만 바꿔도 바로 확인돼요. 끝까지 하지 않아도 돼요.',
+                      style: TextStyle(fontSize: 32 * s, color: p.description),
+                    ),
                     SizedBox(height: 20 * s),
                     // Asked for with 어디 있나요?; the space stays reserved
                     // so the card doesn't jump.
@@ -355,7 +360,7 @@ class _RetryOverlay extends StatelessWidget {
                   ),
                   SizedBox(height: 24 * s),
                   Text(
-                    '버튼을 끝까지 누르고, 시동이 켜져 있는지 확인해 주세요',
+                    '한 번만 바꿔도 돼요. 시동이 켜져 있는지 확인하고 다시 해보세요',
                     style: TextStyle(fontSize: 30 * s, color: p.title),
                   ),
                   SizedBox(height: 24 * s),

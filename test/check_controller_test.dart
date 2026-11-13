@@ -96,6 +96,14 @@ void main() {
     },
   );
 
+  test('a half step down is enough: no need to go all the way', () async {
+    final car = FakeVehicleService();
+    final c = await ready(car);
+    car.set(c.current!, -0.5);
+    await pumpEventQueue();
+    expect(c.detected, isTrue);
+  });
+
   test('not in P: timer stops and presses are ignored', () async {
     final car = FakeVehicleService();
     final c = await ready(car);
