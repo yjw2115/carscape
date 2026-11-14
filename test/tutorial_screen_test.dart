@@ -87,6 +87,42 @@ void main() {
     }
   }
 
+  testWidgets('intro home button goes back to the opener', (tester) async {
+    final c = TutorialController(
+      options: const TutorialOptions(enableClock: false),
+    );
+    addTearDown(c.dispose);
+    tester.view.physicalSize = const Size(1682, 1210);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: tutorialTheme(),
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => TutorialScreen(
+                  controller: c,
+                  previewOnly: true,
+                  narrationPlayer: TestVoice(),
+                ),
+              ),
+            ),
+            child: const Text('home'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('home'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('intro-home')));
+    await tester.pumpAndSettle();
+    expect(find.byType(TutorialScreen), findsNothing);
+    expect(find.text('home'), findsOneWidget);
+  });
+
   testWidgets(
     'player can complete all four chapters using only visible controls',
     (tester) async {

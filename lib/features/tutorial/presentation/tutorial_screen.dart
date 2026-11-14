@@ -720,11 +720,25 @@ class _TutorialScreenState extends State<TutorialScreen>
                       ),
                     ],
                     const SizedBox(height: 16),
-                    FilledButton.icon(
-                      key: const Key('start-tutorial'),
-                      onPressed: c.readyToStart ? _start : null,
-                      icon: const Icon(Icons.arrow_forward_rounded),
-                      label: const Text('이야기 시작하기'),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        FilledButton.icon(
+                          key: const Key('start-tutorial'),
+                          onPressed: c.readyToStart ? _start : null,
+                          icon: const Icon(Icons.arrow_forward_rounded),
+                          label: const Text('이야기 시작하기'),
+                        ),
+                        // Not started yet, so leaving needs no confirmation.
+                        if (Navigator.canPop(context))
+                          OutlinedButton.icon(
+                            key: const Key('intro-home'),
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(Icons.home_rounded),
+                            label: const Text('홈으로'),
+                          ),
+                      ],
                     ),
                     if (!_demo) ...[
                       const SizedBox(height: 12),
