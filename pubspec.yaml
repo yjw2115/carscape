@@ -24,6 +24,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/audio/
+    - assets/brand/
     - assets/frozen_night/art/
     - assets/frozen_night/voice/
   fonts:

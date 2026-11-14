@@ -37,7 +37,7 @@ const escapeThemes = <EscapeTheme>[
     id: storyFrozenNight,
     title: '얼어붙은 밤',
     description: '눈보라 속에 멈춰 버린 차. 완전히 얼어붙기 전에 고치고 탈출해야 한다.',
-    chips: ['약 15분', '2~4인', '실패 없음'],
+    chips: ['약 15분', '1~4인', '난이도 ●○○'],
     // Same image as the story's opening screen (frozenNightCabin).
     photo: 'assets/frozen_night/art/cabin.jpg',
   ),
@@ -45,21 +45,21 @@ const escapeThemes = <EscapeTheme>[
     id: 'case01',
     title: '시간당 120mm',
     description: '기록적인 폭우에 멈춰버린 차. 물이 차오르기 전에 단서를 풀어야 한다.',
-    chips: ['약 30분', '2~4인', '난이도 ●●○'],
+    chips: ['약 30분', '1~4인', '난이도 ●●○'],
     art: ThemeArt.downpour,
   ),
   EscapeTheme(
     id: 'case02',
     title: '자정의 주차장',
     description: '라디오에서 흘러나오는 낯선 주파수.',
-    chips: ['약 30분', '2~4인', '난이도 ●●○'],
+    chips: ['약 30분', '1~4인', '난이도 ●●○'],
     art: ThemeArt.parkingLot,
   ),
   EscapeTheme(
     id: 'case03',
     title: '사라진 운전기사',
     description: '단서가 가리키는 장소로 직접 달려가야 한다.',
-    chips: ['약 2시간', '지역 코스'],
+    chips: ['약 2시간'],
     art: ThemeArt.missingDriver,
   ),
 ];

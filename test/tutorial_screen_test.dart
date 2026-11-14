@@ -122,15 +122,20 @@ void main() {
       await tester.pump();
       await tap(tester, 'steering-45');
       await dialogue(tester, c);
-      expect(find.text('우리 모두, 살아남았다.'), findsOneWidget);
-      expect(find.text('사용한 힌트'), findsOneWidget);
+      expect(find.text('와, 축하해요!'), findsOneWidget);
+      expect(find.byKey(const Key('confetti')), findsOneWidget);
+      for (final stat in ['플레이 시간', '힌트', '최종 기록']) {
+        expect(find.text(stat), findsOneWidget);
+      }
+      expect(find.text('다시 체험하기'), findsNothing);
+      expect(find.byKey(const Key('go-home')), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },
   );
 
   testWidgets(
-    'notes replay and pause; cancelled hints are free, accepted hints count once',
+    'notes replay while time keeps running; cancelled hints are free, accepted hints count once',
     (tester) async {
       final c = TutorialController(
         options: const TutorialOptions(enableClock: false),
@@ -142,11 +147,14 @@ void main() {
       await dialogue(tester, c);
       await tap(tester, 'notes');
       await tester.pump(const Duration(milliseconds: 250));
-      final dialog = tester.getCenter(find.byType(AlertDialog));
+      final dialog = tester.getCenter(find.byType(GlassDialog));
       expect(dialog.dx, closeTo(tester.view.physicalSize.width / 2, 2));
       expect(dialog.dy, closeTo(tester.view.physicalSize.height / 2, 2));
       expect(find.text('다들 괜찮아? 어두워서 아무것도 안 보여...'), findsOneWidget);
-      expect(c.paused, isTrue);
+      expect(c.paused, isFalse);
+      final before = c.elapsed;
+      c.tick(const Duration(seconds: 2));
+      expect(c.elapsed - before, const Duration(seconds: 2));
       expect(voice.spoken.length, greaterThanOrEqualTo(2));
       expect(c.hintsUsed, 0);
       await tap(tester, 'hint');
@@ -168,14 +176,11 @@ void main() {
       expect(c.hintsUsed, 2);
       await tester.tap(find.text('해볼게요'));
       await tester.pump(const Duration(milliseconds: 250));
-      expect(c.paused, isTrue);
+      expect(c.paused, isFalse);
       await tester.tap(find.text('이야기로 돌아가기'));
       await tester.pump(const Duration(milliseconds: 250));
       expect(c.paused, isFalse);
-      await tap(tester, 'pause');
-      expect(c.paused, isTrue);
-      await tap(tester, 'resume');
-      expect(c.paused, isFalse);
+      expect(find.byKey(const Key('pause')), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },
@@ -234,6 +239,7 @@ void main() {
       );
       addTearDown(c.dispose);
       await setup(tester, c);
+      await tap(tester, 'dev-tools');
       await tap(tester, 'test-next');
       expect(c.stage, TutorialStage.power);
       await tap(tester, 'test-next');
@@ -272,7 +278,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.byKey(const Key('cold-caption')), findsOneWidget);
-    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byType(GlassDialog), findsNothing);
     expect(c.acceptsInput, isTrue);
     expect(voice.spoken.where((text) => text == '추워서 손이 안 움직여...').length, 1);
     c.receive(
@@ -318,6 +324,7 @@ void main() {
       c.receive(const TutorialVehicleInput(VehicleInputKind.connection, 1));
       c.receive(const TutorialVehicleInput(VehicleInputKind.parking, 1));
       await tester.pump();
+      await tap(tester, 'dev-tools');
       await tap(tester, 'test-next');
       await tester.pump();
       expect(c.stage, TutorialStage.power);
@@ -333,4 +340,124 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('start screen keeps only the title, concept and start', (
+    tester,
+  ) async {
+    final c = TutorialController(
+      options: const TutorialOptions(enableClock: false),
+    );
+    addTearDown(c.dispose);
+    await setup(tester, c, size: const Size(1682, 1210));
+    expect(find.text('얼어붙은 밤'), findsOneWidget);
+    expect(find.textContaining('눈보라 속에 멈춰 버린 자동차'), findsOneWidget);
+    expect(find.text('시작하기'), findsOneWidget);
+    expect(find.text('이야기에 귀 기울여요'), findsNothing);
+    expect(find.text('글로브박스 열림 감지 지원'), findsNothing);
+    final start = tester.getRect(find.byKey(const Key('start-tutorial')));
+    expect(start.left, lessThan(1682 * .1));
+    expect(start.bottom, greaterThan(1210 * .85));
+    expect(start.height, greaterThanOrEqualTo(80));
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('next button sits bottom-left in Hyundai Sand', (tester) async {
+    final c = TutorialController(
+      options: const TutorialOptions(enableClock: false),
+    );
+    addTearDown(c.dispose);
+    await setup(tester, c, size: const Size(1682, 1210));
+    await tap(tester, 'start-tutorial');
+    expect(find.text('다들 괜찮아? 어두워서 아무것도 안 보여...'), findsOneWidget);
+    final next = find.byKey(const Key('next-dialogue'));
+    final rect = tester.getRect(next);
+    expect(rect.left, lessThan(1682 * .1));
+    expect(rect.bottom, greaterThan(1210 * .85));
+    final style = tester.widget<FilledButton>(next).style!;
+    expect(style.backgroundColor!.resolve({}), const Color(0xFFE4DCD3));
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+    'in game: floating clock, no top or bottom bars, settings gear, give up',
+    (tester) async {
+      final c = TutorialController(
+        options: const TutorialOptions(enableClock: false),
+      );
+      addTearDown(c.dispose);
+      var exited = 0;
+      tester.view.physicalSize = const Size(1682, 1210);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: tutorialTheme(),
+          home: TutorialScreen(
+            controller: c,
+            previewOnly: true,
+            narrationPlayer: TestVoice(),
+            onExit: () => exited++,
+          ),
+        ),
+      );
+      await tap(tester, 'start-tutorial');
+      await dialogue(tester, c);
+      expect(c.stage, TutorialStage.power);
+      final clock = tester.getRect(find.byKey(const Key('story-clock')));
+      expect(clock.right, greaterThan(1682 * .9));
+      expect(clock.top, lessThan(1210 * .1));
+      expect(find.textContaining('OF 04'), findsNothing);
+      expect(find.text('이전 단계'), findsNothing);
+      expect(find.byKey(const Key('pause')), findsNothing);
+      expect(find.byKey(const Key('story-bgm-settings')), findsNothing);
+
+      await tap(tester, 'story-settings');
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.text('나레이션 음성'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('story-voice')));
+      await tester.pump();
+      await tester.tap(find.text('닫기'));
+      await tester.pump(const Duration(milliseconds: 250));
+
+      final giveUp = tester.getRect(find.byKey(const Key('give-up')));
+      expect(giveUp.right, greaterThan(1682 * .8));
+      expect(giveUp.bottom, greaterThan(1210 * .85));
+      await tap(tester, 'give-up');
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.tap(find.text('계속하기'));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(exited, 0);
+      await tap(tester, 'give-up');
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.tap(find.byKey(const Key('confirm-give-up')));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(exited, 1);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets('defroster softens the snow in the last chapter', (
+    tester,
+  ) async {
+    final c = TutorialController(
+      options: const TutorialOptions(enableClock: false),
+    );
+    addTearDown(c.dispose);
+    await setup(tester, c);
+    for (int i = 0; i < 4; i++) {
+      c.testNavigate(1);
+    }
+    await tester.pump();
+    await dialogue(tester, c);
+    expect(c.stage, TutorialStage.escape);
+    expect(find.byKey(const Key('melting-snow')), findsNothing);
+    await tap(tester, 'front-defroster');
+    c.tick(const Duration(seconds: 3));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(c.melt, greaterThan(0));
+    expect(c.visibility, 0);
+    expect(find.byKey(const Key('melting-snow')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
 }

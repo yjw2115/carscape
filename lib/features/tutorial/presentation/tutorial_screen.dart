@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../../../core/game_audio.dart';
+import '../../home/presentation/home_palette.dart';
 import '../domain/tutorial_controller.dart';
 import '../domain/tutorial_models.dart';
 import '../domain/tutorial_script.dart';
@@ -10,6 +11,7 @@ import '../integration/narration_player.dart';
 import '../integration/tutorial_input_source.dart';
 import '../integration/pleos_tutorial_input_source.dart';
 import 'tutorial_artwork.dart';
+import 'tutorial_celebration.dart';
 import 'tutorial_style.dart';
 
 class TutorialScreen extends StatefulWidget {
@@ -19,6 +21,7 @@ class TutorialScreen extends StatefulWidget {
     this.narrationPlayer,
     this.inputSource,
     this.onFinished,
+    this.onExit,
     this.audio,
     this.previewOnly = false,
   });
@@ -27,6 +30,10 @@ class TutorialScreen extends StatefulWidget {
   final NarrationPlayer? narrationPlayer;
   final TutorialInputSource? inputSource;
   final ValueChanged<TutorialResult>? onFinished;
+
+  /// Leaves the story without a result ("포기하기"). Defaults to popping
+  /// this route, which returns to the home screen.
+  final VoidCallback? onExit;
   final GameAudio? audio;
   final bool previewOnly;
 
@@ -47,7 +54,11 @@ class _TutorialScreenState extends State<TutorialScreen>
   bool _muted = false;
   bool _voiceUnavailable = false;
   bool _notesOpen = false;
-  bool _gloveboxSensor = true;
+  TutorialStage? _notesStage;
+  bool _confirmingExit = false;
+  bool _devOpen = false;
+  TutorialStage _shownStage = TutorialStage.intro;
+  final bool _gloveboxSensor = true;
   late bool _ownsController;
   int _lightReset = -1, _ambientRevision = 0;
   bool? _lightScope;
@@ -56,9 +67,12 @@ class _TutorialScreenState extends State<TutorialScreen>
   Timer? _ambientTimer;
   bool _ambientCaption = false;
   Object? _chapterCue;
+
+  /// Developer chapter jumps: on in debug runs, off in release builds.
+  /// Force either way with --dart-define=TUTORIAL_TEST_NAVIGATION=true|false.
   static const _testNavigation = bool.fromEnvironment(
     'TUTORIAL_TEST_NAVIGATION',
-    defaultValue: true,
+    defaultValue: kDebugMode,
   );
   bool get _demo => _source == null;
 
@@ -122,6 +136,14 @@ class _TutorialScreenState extends State<TutorialScreen>
     );
     _syncVehicle();
     _syncChapterCue();
+    if (_shownStage != c.stage) {
+      _shownStage = c.stage;
+      // Celebration sound alongside the confetti on the final screen.
+      if (c.stage == TutorialStage.result) {
+        unawaited(widget.audio?.playChapterClear() ?? Future.value());
+      }
+    }
+    _closeStaleNotes();
     if (_revision != c.dialogueRevision) {
       _revision = c.dialogueRevision;
       unawaited(_playCurrent());
@@ -292,6 +314,7 @@ class _TutorialScreenState extends State<TutorialScreen>
     _ambientRevision = 0;
     _lightReset = -1;
     _lightScope = null;
+    _shownStage = TutorialStage.intro;
     c = TutorialController(
       options: TutorialOptions(
         gloveboxSensorAvailable: _gloveboxSensor,
@@ -321,10 +344,11 @@ class _TutorialScreenState extends State<TutorialScreen>
     c.start();
   }
 
+  /// Narration and hints open over the story while the clock keeps running.
   Future<void> _notes() async {
-    final priorPause = c.manualPause;
+    if (_notesOpen) return;
     _notesOpen = true;
-    c.setManualPause(true);
+    final openedAt = _notesStage = c.stage;
     final stages = c.visited
         .where((stage) => TutorialScript.dialogue.containsKey(stage))
         .toList();
@@ -334,96 +358,112 @@ class _TutorialScreenState extends State<TutorialScreen>
     unawaited(_replay(latest));
     if (!mounted) return;
     await _dialog<void>(
-      (context) => AlertDialog(
+      (context) => GlassDialog(
         alignment: Alignment.center,
-        title: const Row(
-          children: [
-            Icon(Icons.help_outline_rounded, color: TutorialColors.ice),
-            SizedBox(width: 12),
-            Text('나레이션/힌트'),
-          ],
-        ),
-        content: SizedBox(
-          width: 580,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final stage in stages) ...[
-                  Text(
-                    _stageTitle(stage),
-                    style: const TextStyle(
-                      color: TutorialColors.ice,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  for (final line in [
-                    ...TutorialScript.dialogue[stage]!,
-                    if (stage == TutorialStage.ventilation &&
-                        c.coldCommentPlayed)
-                      const DialogueLine('운전석', TutorialScript.coldComment),
-                  ])
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        tileColor: TutorialColors.background,
-                        title: Text(
-                          line.speaker,
-                          style: const TextStyle(
-                            color: TutorialColors.warm,
-                            fontSize: 15,
-                          ),
-                        ),
-                        subtitle: Text(
-                          line.text,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            color: TutorialColors.text,
-                            height: 1.6,
-                          ),
-                        ),
-                        trailing: const Icon(Icons.volume_up_outlined),
-                        onTap: () => unawaited(_replay([line])),
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                ],
-              ],
-            ),
-          ),
-        ),
-        actionsAlignment: MainAxisAlignment.start,
+        maxWidth: 700,
+        icon: Icons.record_voice_over_rounded,
+        title: '나레이션/힌트',
         actions: [
           if (TutorialScript.hints.containsKey(c.stage))
             ListenableBuilder(
               listenable: c,
               builder: (context, _) => FilledButton.icon(
                 key: const Key('hint'),
+                style: StoryButtons.sand(),
                 onPressed: c.canOpenHint ? _hint : null,
-                icon: const Icon(Icons.lightbulb_outline),
+                icon: const Icon(Icons.lightbulb_outline_rounded, size: 24),
                 label: Text('힌트 ${c.hintLevel}/3'),
               ),
             ),
           OutlinedButton(
+            style: StoryButtons.glass(),
             onPressed: () => Navigator.pop(context),
             child: const Text('이야기로 돌아가기'),
           ),
         ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final stage in stages) ...[
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 10),
+                child: Text(
+                  _stageTitle(stage),
+                  style: const TextStyle(
+                    color: TutorialColors.ice,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+              for (final line in [
+                ...TutorialScript.dialogue[stage]!,
+                if (stage == TutorialStage.ventilation && c.coldCommentPlayed)
+                  const DialogueLine('운전석', TutorialScript.coldComment),
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: GlassTile(
+                    onTap: () => unawaited(_replay([line])),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                line.speaker,
+                                style: const TextStyle(
+                                  color: TutorialColors.warm,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                line.text,
+                                style: const TextStyle(
+                                  fontSize: 19,
+                                  height: 1.6,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const GlassBadge(
+                          icon: Icons.volume_up_rounded,
+                          size: 44,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 14),
+            ],
+          ],
+        ),
       ),
     );
     _notesOpen = false;
+    if (!mounted || c.stage != openedAt) return;
+    // The replay interrupted the current line; read it again and carry on.
     _speechToken++;
     await _voice.stop();
-    if (mounted) c.setManualPause(priorPause);
+    if (mounted && c.dialogueActive && !c.paused) unawaited(_playCurrent());
+  }
+
+  /// A puzzle solved while the notes are open moves the story on; close the
+  /// notes so the new chapter's narration is not hidden behind them.
+  void _closeStaleNotes() {
+    if (!_notesOpen || _notesStage == c.stage) return;
+    _notesStage = c.stage;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _notesOpen) {
+        Navigator.of(context).popUntil((route) => route is! PopupRoute);
+      }
+    });
   }
 
   Future<void> _replay(List<DialogueLine> lines) async {
@@ -458,21 +498,37 @@ class _TutorialScreenState extends State<TutorialScreen>
     if (c.hintsUsed == 0) {
       accepted =
           await _dialog<bool>(
-            (context) => AlertDialog(
+            (context) => GlassDialog(
               alignment: Alignment.center,
-              title: Text('힌트 ${c.hintLevel + 1} / 3'),
-              content: const Text('힌트를 열면 최종 기록에 1분이 더해져요.'),
-              actionsAlignment: MainAxisAlignment.start,
+              icon: Icons.lightbulb_outline_rounded,
+              tint: TutorialColors.warm,
+              title: '힌트 ${c.hintLevel + 1} / 3',
               actions: [
                 FilledButton(
+                  style: StoryButtons.sand(),
                   onPressed: () => Navigator.pop(context, true),
                   child: const Text('힌트 열기 · +1분'),
                 ),
                 OutlinedButton(
+                  style: StoryButtons.glass(),
                   onPressed: () => Navigator.pop(context, false),
                   child: const Text('돌아가기'),
                 ),
               ],
+              child: GlassTile(
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.timer_outlined,
+                      color: TutorialColors.warm,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(child: Text('힌트를 열면 최종 기록에 1분이 더해져요.')),
+                    _tag('+1분', color: TutorialColors.warm),
+                  ],
+                ),
+              ),
             ),
           ) ??
           false;
@@ -486,72 +542,206 @@ class _TutorialScreenState extends State<TutorialScreen>
     }
     c.useHint(fromPausedMenu: true);
     await _dialog<void>(
-      (context) => AlertDialog(
+      (context) => GlassDialog(
         alignment: Alignment.center,
-        title: Text('힌트 ${c.hintLevel} / 3'),
-        content: Text(hint, style: const TextStyle(fontSize: 21, height: 1.7)),
-        actionsAlignment: MainAxisAlignment.start,
+        maxWidth: 600,
+        icon: Icons.tips_and_updates_outlined,
+        tint: TutorialColors.warm,
+        title: '힌트 ${c.hintLevel} / 3',
         actions: [
           FilledButton(
+            style: StoryButtons.sand(),
             onPressed: () => Navigator.pop(context),
             child: const Text('해볼게요'),
           ),
         ],
+        child: Text(hint, style: const TextStyle(fontSize: 22, height: 1.7)),
       ),
     );
   }
 
-  Future<void> _musicSettings() async {
-    final settings = widget.audio!.settings;
-    final priorPause = c.manualPause;
-    _notesOpen = true;
-    c.setManualPause(true);
+  void _setMuted(bool muted) {
+    if (_muted == muted) return;
+    setState(() => _muted = muted);
+    if (muted) {
+      unawaited(_voice.stop());
+    } else if (c.dialogueActive) {
+      unawaited(_playCurrent());
+    }
+  }
+
+  /// Music and narration voice in one place, behind the gear button.
+  Future<void> _settings() async {
+    final settings = widget.audio?.settings;
     await _dialog<void>(
-      (context) => AlertDialog(
-        title: const Text('배경음악'),
-        content: SizedBox(
-          width: 400,
-          child: ListenableBuilder(
-            listenable: settings,
-            builder: (context, _) => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('배경음악 켜기'),
-                  value: settings.bgmOn,
-                  onChanged: (value) => settings.bgmOn = value,
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Slider(
-                        key: const Key('story-bgm-volume'),
-                        value: settings.bgmVolume,
-                        divisions: 10,
-                        label: '${(settings.bgmVolume * 100).round()}%',
-                        onChanged: settings.bgmOn
-                            ? (value) => settings.bgmVolume = value
-                            : null,
-                      ),
-                    ),
-                    Text('${(settings.bgmVolume * 100).round()}%'),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
+      (context) => GlassDialog(
+        icon: Icons.settings_rounded,
+        title: '설정',
         actions: [
           FilledButton(
+            style: StoryButtons.sand(),
             onPressed: () => Navigator.pop(context),
             child: const Text('닫기'),
           ),
         ],
+        child: StatefulBuilder(
+          builder: (context, refresh) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (settings != null) ...[
+                ListenableBuilder(
+                  listenable: settings,
+                  builder: (context, _) => GlassTile(
+                    child: Column(
+                      children: [
+                        _settingRow(
+                          icon: Icons.music_note_rounded,
+                          title: '배경음악',
+                          toggle: Switch(
+                            key: const Key('story-bgm'),
+                            value: settings.bgmOn,
+                            onChanged: (value) => settings.bgmOn = value,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.volume_down_rounded,
+                              color: settings.bgmOn
+                                  ? TutorialColors.muted
+                                  : TutorialColors.muted.withValues(alpha: .4),
+                            ),
+                            Expanded(
+                              child: Slider(
+                                key: const Key('story-bgm-volume'),
+                                value: settings.bgmVolume,
+                                divisions: 10,
+                                label: '${(settings.bgmVolume * 100).round()}%',
+                                onChanged: settings.bgmOn
+                                    ? (value) => settings.bgmVolume = value
+                                    : null,
+                              ),
+                            ),
+                            SizedBox(
+                              width: 58,
+                              child: Text(
+                                '${(settings.bgmVolume * 100).round()}%',
+                                textAlign: TextAlign.end,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              GlassTile(
+                child: _settingRow(
+                  icon: _muted
+                      ? Icons.volume_off_rounded
+                      : Icons.volume_up_rounded,
+                  title: '나레이션 음성',
+                  subtitle: '끄면 자막으로만 진행해요',
+                  toggle: Switch(
+                    key: const Key('story-voice'),
+                    value: !_muted,
+                    onChanged: (value) {
+                      _setMuted(!value);
+                      refresh(() {});
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
-    _notesOpen = false;
-    if (mounted) c.setManualPause(priorPause);
+  }
+
+  Widget _settingRow({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required Widget toggle,
+  }) => Row(
+    children: [
+      GlassBadge(icon: icon, size: 46),
+      const SizedBox(width: 16),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
+            if (subtitle != null)
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: TutorialColors.muted,
+                  height: 1.4,
+                ),
+              ),
+          ],
+        ),
+      ),
+      const SizedBox(width: 12),
+      toggle,
+    ],
+  );
+
+  Future<void> _giveUp() async {
+    if (_confirmingExit) return;
+    _confirmingExit = true;
+    final leave =
+        await _dialog<bool>(
+          (context) => GlassDialog(
+            icon: Icons.flag_rounded,
+            tint: TutorialColors.warning,
+            title: '포기하고 홈으로 갈까요?',
+            actions: [
+              FilledButton(
+                key: const Key('confirm-give-up'),
+                style: StoryButtons.danger(),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('포기하기'),
+              ),
+              OutlinedButton(
+                style: StoryButtons.glass(),
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('계속하기'),
+              ),
+            ],
+            child: const Text('지금까지의 진행과 기록은 저장되지 않아요.'),
+          ),
+        ) ??
+        false;
+    _confirmingExit = false;
+    if (leave && mounted) _exit();
+  }
+
+  void _exit() {
+    _speechToken++;
+    unawaited(_voice.stop());
+    final exit = widget.onExit;
+    if (exit != null) {
+      exit();
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
@@ -576,185 +766,142 @@ class _TutorialScreenState extends State<TutorialScreen>
   Widget build(BuildContext context) => PopScope(
     canPop: !c.playing,
     onPopInvokedWithResult: (didPop, _) {
-      if (!didPop && c.playing) c.setManualPause(true);
+      if (!didPop && c.playing) unawaited(_giveUp());
     },
     child: GameZoom(
       child: Scaffold(
-        bottomNavigationBar: _testNavigation ? _testToolbar() : null,
         body: SafeArea(
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: c.stage == TutorialStage.blackout
-                    ? const ColoredBox(color: Colors.black)
-                    : SnowBackdrop(
-                        shelter:
-                            c.stage == TutorialStage.result ||
-                            c.stage == TutorialStage.arrival,
-                      ),
-              ),
-              if (c.stage != TutorialStage.blackout)
-                Positioned.fill(
-                  child: ColoredBox(
-                    color: TutorialColors.background.withValues(
-                      alpha:
-                          c.stage == TutorialStage.intro ||
-                              c.stage == TutorialStage.result
-                          ? .32
-                          : .83,
-                    ),
-                  ),
-                ),
-              Positioned.fill(
-                child: switch (c.stage) {
-                  TutorialStage.intro => _intro(),
-                  TutorialStage.result => _result(),
-                  TutorialStage.blackout => _blackout(),
-                  TutorialStage.arrival => _arrival(),
-                  _ => _play(),
-                },
-              ),
-              if (c.dialogueActive &&
-                  c.stage != TutorialStage.blackout &&
-                  c.stage != TutorialStage.arrival &&
-                  !c.paused)
-                _dialogueOverlay(),
-              if (c.pendingChapter != null && !c.paused)
-                const IgnorePointer(
-                  child: Center(
-                    child: Chip(
-                      avatar: Icon(Icons.check_rounded),
-                      label: Text('단계 완료'),
-                    ),
-                  ),
-                ),
-              if (c.paused &&
-                  c.playing &&
-                  (!_notesOpen || !c.parked || !c.connected))
-                _pauseOverlay(),
-            ],
+          child: LayoutBuilder(
+            builder: (context, box) => _layers(box.maxWidth < _narrowWidth),
           ),
         ),
       ),
     ),
   );
 
+  /// Below this width the corner buttons move under the clock, so they never
+  /// cover the bottom-left buttons.
+  static const _narrowWidth = 720.0;
+
+  Widget _layers(bool narrow) => Stack(
+    children: [
+      Positioned.fill(child: _backdrop(narrow)),
+      Positioned.fill(
+        child: switch (c.stage) {
+          TutorialStage.intro => _intro(),
+          TutorialStage.result => _result(),
+          TutorialStage.blackout => _blackout(),
+          TutorialStage.arrival => _arrival(),
+          _ => _play(narrow),
+        },
+      ),
+      if (c.dialogueActive &&
+          c.stage != TutorialStage.blackout &&
+          c.stage != TutorialStage.arrival &&
+          !c.paused)
+        _dialogueOverlay(),
+      if (c.pendingChapter != null && !c.paused)
+        const IgnorePointer(
+          child: Center(
+            child: Chip(
+              avatar: Icon(Icons.check_rounded),
+              label: Text('단계 완료'),
+            ),
+          ),
+        ),
+      if (c.paused && c.playing) _pauseOverlay(),
+      if (c.playing) _clock(),
+      _cornerActions(narrow),
+    ],
+  );
+
   /// Dialogs scale with the story screen.
   Future<T?> _dialog<T>(WidgetBuilder builder) => showDialog<T>(
     context: context,
+    barrierColor: const Color(0x8C03070D),
     builder: (context) => GameZoom(child: builder(context)),
   );
 
-  Widget _intro() => LayoutBuilder(
-    builder: (context, constraints) {
-      return SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Padding(
-            padding: EdgeInsets.all(constraints.maxWidth < 600 ? 24 : 40),
-            child: Align(
-              alignment: Alignment.centerLeft,
+  /// Each chapter's scene fills the screen; story screens dim a photo.
+  Widget _backdrop(bool narrow) => switch (c.stage) {
+    TutorialStage.blackout => const ColoredBox(color: Colors.black),
+    TutorialStage.intro => _dimmed(const SnowBackdrop(), .32),
+    TutorialStage.arrival => _dimmed(const SnowBackdrop(shelter: true), .4),
+    TutorialStage.result => _dimmed(const SnowBackdrop(shelter: true), .5),
+    _ => LayoutBuilder(
+      builder: (context, box) => TutorialArtwork(
+        controller: c,
+        // Browser demo: instruments sit to the right of the control panel.
+        contentInset: _demo && !narrow
+            ? EdgeInsets.only(left: _demoPanelWidth(box.maxWidth) + 24)
+            : EdgeInsets.zero,
+      ),
+    ),
+  };
+
+  /// Width of the on-screen car controls in browser and preview builds.
+  double _demoPanelWidth(double maxWidth) =>
+      math.min(maxWidth - 48, (maxWidth * .42).clamp(300.0, 360.0));
+
+  Widget _dimmed(Widget photo, double alpha) => Stack(
+    fit: StackFit.expand,
+    children: [
+      photo,
+      ColoredBox(color: TutorialColors.background.withValues(alpha: alpha)),
+    ],
+  );
+
+  /// The main action of a screen: large, Hyundai Sand, bottom left.
+  Widget _sandButton({
+    Key? key,
+    required String label,
+    required VoidCallback? onPressed,
+    IconData icon = Icons.arrow_forward_rounded,
+  }) => FilledButton.icon(
+    key: key,
+    onPressed: onPressed,
+    iconAlignment: IconAlignment.end,
+    style: StoryButtons.sand(
+      minimumSize: const Size(260, 80),
+      fontSize: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 18),
+      elevation: 6,
+    ),
+    icon: Icon(icon, size: 30),
+    label: Text(label),
+  );
+
+  Widget _intro() => Padding(
+    padding: const EdgeInsets.all(40),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: SingleChildScrollView(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 680),
-                child: Column(
+                child: const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _eyebrow('CARSCAPE  /  STAGE 01'),
-                    const SizedBox(height: 20),
-                    const Text(
-                      '얼어붙은 밤',
+                    Text(
+                      TutorialScript.title,
                       style: TextStyle(
-                        fontSize: 46,
+                        fontSize: 64,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: -2,
-                        height: 1.15,
+                        letterSpacing: -2.5,
+                        height: 1.1,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const Text(
+                    SizedBox(height: 22),
+                    Text(
                       '눈보라 속에 멈춰 버린 자동차.\n우리에게 남은 건, 서로를 믿는 마음뿐.',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 24,
                         height: 1.6,
                         color: Color(0xFFD0DFE8),
                       ),
-                    ),
-                    const SizedBox(height: 20),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 8,
-                      children: [
-                        _tag('4자리 협동'),
-                        _tag('네 개의 퍼즐'),
-                        _tag('실패 없이 끝까지'),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    _panel(
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _introRow(Icons.hearing_rounded, '이야기에 귀 기울여요'),
-                          const SizedBox(height: 16),
-                          _introRow(
-                            Icons.touch_app_outlined,
-                            _demo ? '차량 버튼을 화면에서 체험해요' : '차 안의 실제 버튼을 사용해요',
-                          ),
-                          const SizedBox(height: 16),
-                          _introRow(Icons.menu_book_rounded, '놓친 대사는 노트에서'),
-                        ],
-                      ),
-                    ),
-                    if (_demo) ...[
-                      const SizedBox(height: 10),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          '글로브박스 열림 감지 지원',
-                          style: TextStyle(fontSize: 16),
-                        ),
-                        value: _gloveboxSensor,
-                        onChanged: (value) =>
-                            setState(() => _gloveboxSensor = value),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      key: const Key('start-tutorial'),
-                      onPressed: c.readyToStart ? _start : null,
-                      icon: const Icon(Icons.arrow_forward_rounded),
-                      label: const Text('이야기 시작하기'),
-                    ),
-                    if (!_demo) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        !c.connected
-                            ? '차량에 연결 중입니다.'
-                            : !c.parked
-                            ? 'P단 정차 상태를 확인해 주세요.'
-                            : '차량 연결됨 · 네 단계 준비 완료',
-                        style: const TextStyle(
-                          color: TutorialColors.ice,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (c.vehicleIssues.isNotEmpty)
-                        Text(
-                          c.vehicleIssues.values.first,
-                          style: const TextStyle(
-                            color: TutorialColors.warning,
-                            fontSize: 15,
-                          ),
-                        ),
-                    ],
-                    const SizedBox(height: 16),
-                    _notice(
-                      Icons.info_outline_rounded,
-                      _demo
-                          ? '체험 모드 · 실제 차량은 제어하지 않아요.\n이야기는 허구이며 실제 차량 고장 시 대처법이 아니에요.'
-                          : 'P단 정차 상태에서 플레이하세요. 시작할 때 차량 상태가 바뀔 수 있어요.',
                     ),
                   ],
                 ),
@@ -762,21 +909,21 @@ class _TutorialScreenState extends State<TutorialScreen>
             ),
           ),
         ),
-      );
-    },
-  );
-
-  Widget _introRow(IconData icon, String title) => Row(
-    children: [
-      Icon(icon, color: TutorialColors.ice, size: 26),
-      const SizedBox(width: 14),
-      Expanded(
-        child: Text(
-          title,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        const SizedBox(height: 24),
+        _sandButton(
+          key: const Key('start-tutorial'),
+          // While the car is not ready, the button says why.
+          label: c.readyToStart
+              ? '시작하기'
+              : !c.connected
+              ? '차량 연결 중…'
+              : !c.parked
+              ? 'P단에서 시작할 수 있어요'
+              : '차량 확인 중…',
+          onPressed: c.readyToStart ? _start : null,
         ),
-      ),
-    ],
+      ],
+    ),
   );
 
   /// Safety and status notes: an icon and readable text, never small gray.
@@ -787,6 +934,7 @@ class _TutorialScreenState extends State<TutorialScreen>
     Key? key,
   }) => Row(
     key: key,
+    mainAxisSize: MainAxisSize.min,
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Padding(
@@ -815,163 +963,269 @@ class _TutorialScreenState extends State<TutorialScreen>
         _eyebrow('연결이 끊겼습니다', color: TutorialColors.muted),
         Expanded(
           child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 620),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.graphic_eq_rounded,
-                    color: TutorialColors.ice,
-                    size: 30,
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    '운전석',
-                    style: TextStyle(
+            child: SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 620),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.graphic_eq_rounded,
                       color: TutorialColors.ice,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
+                      size: 30,
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    c.currentLine?.text ?? '',
-                    style: const TextStyle(
-                      fontSize: 28,
-                      height: 1.7,
-                      fontWeight: FontWeight.w500,
+                    const SizedBox(height: 24),
+                    const Text(
+                      '운전석',
+                      style: TextStyle(
+                        color: TutorialColors.ice,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  _dialogueNext(),
-                ],
+                    const SizedBox(height: 12),
+                    Text(
+                      c.currentLine?.text ?? '',
+                      style: const TextStyle(
+                        fontSize: 28,
+                        height: 1.7,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
-        _footer(),
+        const SizedBox(height: 16),
+        _dialogueNext(),
       ],
     ),
   );
 
-  Widget _play() => LayoutBuilder(
+  Widget _play(bool narrow) => LayoutBuilder(
     builder: (context, constraints) {
-      final narrow = constraints.maxWidth < 740;
-      final pad = constraints.maxWidth < 600 ? 16.0 : 26.0;
-      final left = _taskPanel();
-      final artwork = TutorialArtwork(controller: c);
-      return Padding(
-        padding: EdgeInsets.all(pad),
-        child: Column(
-          children: [
-            _header(narrow),
-            const SizedBox(height: 16),
-            Expanded(
-              child: !_demo
-                  ? artwork
-                  : narrow
-                  ? ListView(
-                      children: [
-                        SizedBox(height: 260, child: artwork),
-                        const SizedBox(height: 16),
-                        left,
-                      ],
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        SizedBox(
-                          width: math.min(330, constraints.maxWidth * .36),
-                          child: SingleChildScrollView(child: left),
-                        ),
-                        const SizedBox(width: 24),
-                        Expanded(child: artwork),
-                      ],
-                    ),
+      const pad = 24.0;
+      final panelWidth = _demoPanelWidth(constraints.maxWidth);
+      final status = <Widget>[
+        if (!_demo && c.feedback.isNotEmpty)
+          Text(
+            c.feedback,
+            style: const TextStyle(
+              color: TutorialColors.warm,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
             ),
-            const SizedBox(height: 14),
-            if (!_demo && c.feedback.isNotEmpty)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  c.feedback,
-                  style: const TextStyle(
-                    color: TutorialColors.warm,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
+          ),
+        if (_ambientCaption && c.stage == TutorialStage.ventilation)
+          const Text(
+            TutorialScript.coldComment,
+            key: Key('cold-caption'),
+            style: TextStyle(
+              color: TutorialColors.ice,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        if (!_demo && c.vehicleIssues.isNotEmpty)
+          _notice(
+            Icons.link_off_rounded,
+            '차량 상태를 읽지 못했어요. 연결을 확인해 주세요.',
+            color: TutorialColors.warning,
+          ),
+      ];
+      return Stack(
+        children: [
+          // Keeps captions and buttons readable over the full-bleed scene.
+          const Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment(0, .15),
+                    colors: [Color(0xB3060B12), Color(0x00060B12)],
                   ),
                 ),
               ),
-            if (_ambientCaption && c.stage == TutorialStage.ventilation)
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  TutorialScript.coldComment,
-                  key: Key('cold-caption'),
-                  style: TextStyle(
-                    color: TutorialColors.ice,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
+            ),
+          ),
+          // Browser and preview builds play with on-screen car controls.
+          if (_demo)
+            Positioned(
+              left: pad,
+              top: narrow ? 160 : pad,
+              width: panelWidth,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: math.max(
+                    120,
+                    constraints.maxHeight - (narrow ? 160 : pad) - pad - 150,
                   ),
                 ),
-              ),
-            if (!_demo && c.vehicleIssues.isNotEmpty)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: _notice(
-                  Icons.link_off_rounded,
-                  '차량 상태를 읽지 못했어요. 연결을 확인해 주세요.',
-                  color: TutorialColors.warning,
+                child: GlassPanel(
+                  padding: const EdgeInsets.all(18),
+                  child: SingleChildScrollView(child: _taskPanel()),
                 ),
               ),
-            const SizedBox(height: 8),
-            Align(alignment: Alignment.centerLeft, child: _footer()),
-          ],
-        ),
+            ),
+          Positioned(
+            left: pad,
+            right: narrow ? pad : math.min(300, constraints.maxWidth * .4),
+            bottom: pad,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final line in status) ...[line, const SizedBox(height: 8)],
+                if (status.isNotEmpty) const SizedBox(height: 6),
+                _footer(),
+              ],
+            ),
+          ),
+        ],
       );
     },
   );
 
-  Widget _header(bool narrow) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  /// Play time only, on floating glass in the top-right corner.
+  Widget _clock() => Positioned(
+    top: 20,
+    right: 20,
+    child: IgnorePointer(
+      child: GlassPanel(
+        key: const Key('story-clock'),
+        width: null,
+        radius: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _eyebrow('얼어붙은 밤  /  ${c.step.toString().padLeft(2, '0')} OF 04'),
-            const SizedBox(height: 5),
+            const Icon(
+              Icons.timer_outlined,
+              color: TutorialColors.ice,
+              size: 26,
+            ),
+            const SizedBox(width: 10),
             Text(
-              _stageTitle(c.stage),
-              style: TextStyle(
-                fontSize: narrow ? 23 : 27,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -.8,
+              formatTime(c.elapsed),
+              style: const TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.w700,
+                color: TutorialColors.text,
+                fontFeatures: [FontFeature.tabularFigures()],
               ),
             ),
           ],
         ),
       ),
-      const SizedBox(width: 12),
-      Column(
+    ),
+  );
+
+  /// Bottom right: give up, plus developer chapter jumps in debug runs.
+  Widget _cornerActions(bool narrow) {
+    final canGiveUp = c.playing && c.stage != TutorialStage.arrival;
+    if (!canGiveUp && !_testNavigation) return const SizedBox.shrink();
+    final dev = [
+      if (_testNavigation && _devOpen) ...[
+        if (narrow) const SizedBox(height: 12),
+        _devPanel(),
+        if (!narrow) const SizedBox(height: 12),
+      ],
+    ];
+    return Positioned(
+      right: narrow ? 20 : 24,
+      top: narrow ? 84 : null,
+      bottom: narrow ? null : 24,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text(
-            formatTime(c.elapsed),
-            style: const TextStyle(
-              fontSize: 30,
-              fontWeight: FontWeight.w600,
-              color: TutorialColors.ice,
-              fontFeatures: [FontFeature.tabularFigures()],
-            ),
+          if (!narrow) ...dev,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (canGiveUp)
+                OutlinedButton.icon(
+                  key: const Key('give-up'),
+                  onPressed: _giveUp,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(64, 64),
+                    backgroundColor: const Color(0x99101E2C),
+                    textStyle: const TextStyle(
+                      fontFamily: 'NotoSansKR',
+                      fontSize: 19,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  icon: const Icon(Icons.flag_outlined, size: 24),
+                  label: const Text('포기하기'),
+                ),
+              if (canGiveUp && _testNavigation) const SizedBox(width: 10),
+              if (_testNavigation)
+                IconButton.filledTonal(
+                  key: const Key('dev-tools'),
+                  tooltip: '개발자 도구',
+                  onPressed: () => setState(() => _devOpen = !_devOpen),
+                  icon: Icon(
+                    _devOpen ? Icons.close_rounded : Icons.developer_mode,
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 64,
+                    minHeight: 64,
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(height: 4),
-          _tag(_demo ? '화면으로 차량 체험' : '차량 연결됨'),
+          if (narrow) ...dev,
         ],
       ),
-    ],
+    );
+  }
+
+  /// Test-only chapter jumps; records from such plays are not kept.
+  Widget _devPanel() => SizedBox(
+    width: 230,
+    child: GlassPanel(
+      padding: const EdgeInsets.all(12),
+      radius: 20,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(8, 2, 8, 6),
+            child: Text(
+              '개발자 도구 · 단계 이동',
+              style: TextStyle(color: TutorialColors.muted, fontSize: 14),
+            ),
+          ),
+          TextButton.icon(
+            key: const Key('test-previous'),
+            onPressed: c.stage == TutorialStage.intro
+                ? null
+                : () => c.testNavigate(-1),
+            icon: const Icon(Icons.skip_previous),
+            label: const Text('이전 단계'),
+          ),
+          TextButton.icon(
+            key: const Key('test-next'),
+            onPressed: c.stage == TutorialStage.result
+                ? null
+                : () => c.testNavigate(1),
+            icon: const Icon(Icons.skip_next),
+            label: const Text('다음 단계'),
+          ),
+          TextButton.icon(
+            key: const Key('test-first'),
+            onPressed: _restart,
+            icon: const Icon(Icons.restart_alt),
+            label: const Text('처음으로'),
+          ),
+        ],
+      ),
+    ),
   );
 
   Widget _taskPanel() => Column(
@@ -1137,6 +1391,18 @@ class _TutorialScreenState extends State<TutorialScreen>
           icon: const Icon(Icons.water_drop_outlined),
           label: Text('와이퍼 ${c.wiperOn ? '끄기' : '켜기'}'),
         ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          key: const Key('front-defroster'),
+          onPressed: c.acceptsInput
+              ? () => _send(
+                  VehicleInputKind.frontDefroster,
+                  c.defrosterOn ? 0 : 1,
+                )
+              : null,
+          icon: const Icon(Icons.waves_rounded),
+          label: Text('앞유리 성에 제거 ${c.defrosterOn ? '끄기' : '켜기'}'),
+        ),
         const SizedBox(height: 14),
         Text(
           '휠 ${(c.steeringAngle ?? 0).round()}°',
@@ -1198,176 +1464,126 @@ class _TutorialScreenState extends State<TutorialScreen>
     ),
   );
 
+  /// Bottom left: narration/hints and the settings gear.
   Widget _footer() => Wrap(
-    spacing: 8,
-    runSpacing: 6,
+    spacing: 12,
+    runSpacing: 10,
     crossAxisAlignment: WrapCrossAlignment.center,
     children: [
       FilledButton.tonalIcon(
         key: const Key('notes'),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(64, 64),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          textStyle: const TextStyle(
+            fontFamily: 'NotoSansKR',
+            fontSize: 19,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
         onPressed: c.visited.isEmpty || c.pendingChapter != null
             ? null
             : _notes,
-        icon: const Icon(Icons.help_outline_rounded, size: 24),
+        icon: const Icon(Icons.help_outline_rounded, size: 26),
         label: const Text('나레이션/힌트'),
       ),
-      if (widget.audio != null)
-        IconButton(
-          key: const Key('story-bgm-settings'),
-          tooltip: '배경음악 음량',
-          onPressed: c.pendingChapter == null ? _musicSettings : null,
-          icon: const Icon(Icons.music_note_rounded),
-          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-        ),
-      IconButton(
-        tooltip: _muted ? '음성 켜기' : '음성 끄기',
-        onPressed: () {
-          setState(() => _muted = !_muted);
-          if (_muted) {
-            unawaited(_voice.stop());
-          } else if (c.dialogueActive) {
-            unawaited(_playCurrent());
-          }
-        },
-        icon: Icon(
-          _muted ? Icons.volume_off_outlined : Icons.volume_up_outlined,
-        ),
-        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-      ),
-      IconButton(
-        key: const Key('pause'),
-        tooltip: '일시정지',
-        onPressed: c.pendingChapter == null
-            ? () => c.setManualPause(true)
-            : null,
-        icon: const Icon(Icons.pause_rounded),
-        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+      IconButton.filledTonal(
+        key: const Key('story-settings'),
+        tooltip: '설정',
+        onPressed: _settings,
+        icon: const Icon(Icons.settings_rounded, size: 28),
+        constraints: const BoxConstraints(minWidth: 64, minHeight: 64),
       ),
       if (_voiceUnavailable) _tag('음성 재생 실패 · 자막으로 진행'),
     ],
   );
 
-  Widget _testToolbar() => SafeArea(
-    top: false,
-    child: Material(
-      color: const Color(0xFF162433),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            const Text(
-              '테스트',
-              style: TextStyle(color: TutorialColors.muted, fontSize: 12),
-            ),
-            TextButton.icon(
-              key: const Key('test-previous'),
-              onPressed: c.stage == TutorialStage.intro
-                  ? null
-                  : () => c.testNavigate(-1),
-              icon: const Icon(Icons.skip_previous, size: 18),
-              label: const Text('이전 단계'),
-            ),
-            TextButton.icon(
-              key: const Key('test-next'),
-              onPressed: c.stage == TutorialStage.result
-                  ? null
-                  : () => c.testNavigate(1),
-              icon: const Icon(Icons.skip_next, size: 18),
-              label: const Text('다음 단계'),
-            ),
-            TextButton.icon(
-              key: const Key('test-first'),
-              onPressed: _restart,
-              icon: const Icon(Icons.restart_alt, size: 18),
-              label: const Text('처음으로'),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-
   Widget _dialogueOverlay() => Positioned.fill(
     child: ColoredBox(
-      color: Colors.black.withValues(alpha: .62),
-      // Bottom-left: the reply buttons sit on the driver's side.
+      color: Colors.black.withValues(alpha: .58),
+      // Bottom-left: the story text above, the big next button in the
+      // corner nearest the driver.
       child: Align(
         alignment: Alignment.bottomLeft,
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(28),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: _panel(
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: _panel(
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.graphic_eq_rounded,
-                        color: TutorialColors.ice,
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.graphic_eq_rounded,
+                            color: TutorialColors.ice,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            c.currentLine?.speaker ?? '',
+                            style: const TextStyle(
+                              color: TutorialColors.ice,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const Spacer(),
+                          _tag('${c.dialogueIndex + 1} / ${c.dialogue.length}'),
+                        ],
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(height: 18),
                       Text(
-                        c.currentLine?.speaker ?? '',
-                        style: const TextStyle(
-                          color: TutorialColors.ice,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      _tag('${c.dialogueIndex + 1} / ${c.dialogue.length}'),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    c.currentLine?.text ?? '',
-                    style: const TextStyle(fontSize: 26, height: 1.7),
-                  ),
-                  const SizedBox(height: 24),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 8,
-                    children: [
-                      _dialogueNext(),
-                      OutlinedButton.icon(
-                        onPressed: _notes,
-                        icon: const Icon(Icons.help_outline_rounded),
-                        label: const Text('나레이션/힌트'),
+                        c.currentLine?.text ?? '',
+                        style: const TextStyle(fontSize: 26, height: 1.7),
                       ),
                     ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 14,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _dialogueNext(),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(64, 64),
+                    ),
+                    onPressed: _notes,
+                    icon: const Icon(Icons.help_outline_rounded),
+                    label: const Text('나레이션/힌트'),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
         ),
       ),
     ),
   );
 
-  Widget _dialogueNext() => FilledButton.icon(
+  Widget _dialogueNext() => _sandButton(
     key: const Key('next-dialogue'),
     onPressed: () {
       _speechToken++;
       unawaited(_voice.stop());
       c.advanceDialogue();
     },
-    icon: const Icon(Icons.arrow_forward_rounded),
-    label: Text(
-      c.dialogueIndex + 1 < c.dialogue.length
-          ? '다음 대사'
-          : c.stage == TutorialStage.blackout
-          ? '어둠 속 살펴보기'
-          : c.stage == TutorialStage.arrival
-          ? '결과 보기'
-          : '이어서 해보기',
-    ),
+    label: c.dialogueIndex + 1 < c.dialogue.length
+        ? '다음'
+        : c.stage == TutorialStage.blackout
+        ? '어둠 속 살펴보기'
+        : c.stage == TutorialStage.arrival
+        ? '결과 보기'
+        : '이어서 해보기',
   );
 
   Widget _pauseOverlay() => Positioned.fill(
@@ -1443,143 +1659,136 @@ class _TutorialScreenState extends State<TutorialScreen>
     ),
   );
 
-  Widget _arrival() => Stack(
-    children: [
-      Positioned.fill(child: const SnowBackdrop(shelter: true)),
-      Positioned.fill(
-        child: ColoredBox(
-          color: TutorialColors.background.withValues(alpha: .4),
-        ),
-      ),
-      Padding(
-        padding: const EdgeInsets.all(32),
-        child: Align(
-          alignment: Alignment.bottomLeft,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 650),
+  Widget _arrival() => Padding(
+    padding: const EdgeInsets.all(32),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Align(
+            alignment: Alignment.bottomLeft,
             child: SingleChildScrollView(
-              child: _panel(
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _eyebrow('안전한 곳에 도착했습니다', color: TutorialColors.warm),
-                    const SizedBox(height: 12),
-                    if (c.usedTestNavigation)
-                      _tag('단계 이동을 사용한 테스트 기록', color: TutorialColors.warm),
-                    Text(
-                      c.currentLine?.text ?? '',
-                      style: const TextStyle(fontSize: 27, height: 1.6),
-                    ),
-                    const SizedBox(height: 20),
-                    _dialogueNext(),
-                  ],
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 650),
+                child: _panel(
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _eyebrow('안전한 곳에 도착했습니다', color: TutorialColors.warm),
+                      const SizedBox(height: 12),
+                      if (c.usedTestNavigation)
+                        _tag('단계 이동을 사용한 테스트 기록', color: TutorialColors.warm),
+                      Text(
+                        c.currentLine?.text ?? '',
+                        style: const TextStyle(fontSize: 27, height: 1.6),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
-      ),
-    ],
+        const SizedBox(height: 20),
+        _dialogueNext(),
+      ],
+    ),
   );
 
+  /// Cleared: confetti cannons, a cheer, the three numbers that matter and
+  /// one way out.
   Widget _result() {
     final r = c.result!;
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.ac_unit_rounded,
-                      color: TutorialColors.warm,
-                      size: 55,
-                    ),
-                    const SizedBox(height: 20),
-                    _eyebrow('스테이지 1 완료', color: TutorialColors.warm),
-                    if (r.usedTestNavigation) ...[
-                      const SizedBox(height: 8),
-                      _tag('단계 이동을 사용한 테스트 기록', color: TutorialColors.warm),
-                    ],
-                    const SizedBox(height: 12),
-                    const Text(
-                      '우리 모두, 살아남았다.',
-                      style: TextStyle(
-                        fontSize: 35,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -1,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      '작은 불빛 하나부터 시작된 협동.\n네 사람의 힘으로 얼어붙은 밤을 건넜어요.',
-                      style: TextStyle(
-                        fontSize: 20,
-                        color: Color(0xFFD7E2E8),
-                        height: 1.6,
-                      ),
-                    ),
-                    const SizedBox(height: 26),
-                    _panel(
-                      Wrap(
-                        spacing: 36,
-                        runSpacing: 20,
+    return Stack(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(40),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: SingleChildScrollView(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 760),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _stat('플레이 시간', formatTime(r.playTime)),
-                          // Each hint adds a minute to the final record.
-                          _stat(
-                            '사용한 힌트',
-                            r.hintsUsed == 0
-                                ? '0회'
-                                : '${r.hintsUsed}회 · +${r.hintsUsed}분',
+                          TweenAnimationBuilder<double>(
+                            tween: Tween(begin: .55, end: 1),
+                            duration: const Duration(milliseconds: 900),
+                            curve: Curves.elasticOut,
+                            builder: (context, scale, child) => Transform.scale(
+                              scale: scale,
+                              alignment: Alignment.centerLeft,
+                              child: child,
+                            ),
+                            child: const Text(
+                              '와, 축하해요!',
+                              style: TextStyle(
+                                fontSize: 64,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -2,
+                                height: 1.15,
+                                color: HyundaiColors.sand,
+                              ),
+                            ),
                           ),
-                          _stat('최종 기록', formatTime(r.recordedTime)),
+                          const SizedBox(height: 12),
+                          const Text(
+                            '얼어붙은 밤을 무사히 탈출했어요.',
+                            style: TextStyle(
+                              fontSize: 24,
+                              height: 1.5,
+                              color: Color(0xFFD7E2E8),
+                            ),
+                          ),
+                          const SizedBox(height: 30),
+                          _panel(
+                            Wrap(
+                              spacing: 44,
+                              runSpacing: 20,
+                              children: [
+                                _stat('플레이 시간', formatTime(r.playTime)),
+                                // Each hint adds a minute to the final record.
+                                _stat(
+                                  '힌트',
+                                  r.hintsUsed == 0
+                                      ? '0회'
+                                      : '${r.hintsUsed}회 · +${r.hintsUsed}분',
+                                ),
+                                _stat('최종 기록', formatTime(r.recordedTime)),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 22),
-                    _tag(
-                      r.hintsUsed == 0
-                          ? '첫 번째 탈출 · 힌트 없이 완료'
-                          : '첫 번째 탈출 · 훈련 완료',
-                      color: TutorialColors.warm,
-                    ),
-                    const SizedBox(height: 26),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 10,
-                      children: [
-                        FilledButton.icon(
-                          key: const Key('restart'),
-                          onPressed: widget.controller == null
-                              ? _restart
-                              : null,
-                          icon: const Icon(Icons.replay_rounded),
-                          label: const Text('다시 체험하기'),
-                        ),
-                        if (widget.onFinished != null)
-                          OutlinedButton(
-                            onPressed: () => widget.onFinished!(r),
-                            child: const Text('테마 선택으로'),
-                          ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: 24),
+              _sandButton(
+                key: const Key('go-home'),
+                label: '홈 화면으로',
+                icon: Icons.home_rounded,
+                onPressed: () {
+                  final finished = widget.onFinished;
+                  if (finished != null) {
+                    finished(r);
+                  } else {
+                    _exit();
+                  }
+                },
+              ),
+            ],
           ),
         ),
-      ),
+        const Positioned.fill(child: ConfettiBurst()),
+      ],
     );
   }
 

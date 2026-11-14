@@ -2,6 +2,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'home_palette.dart';
 
+/// The app icon, shared by the launcher, the web build and the home logo.
+const appIconAsset = 'assets/brand/app_icon.png';
+
 /// Floating "liquid glass" app mark in the top-right corner.
 class GlassLogo extends StatelessWidget {
   const GlassLogo({super.key, required this.s, required this.palette});
@@ -51,14 +54,13 @@ class GlassLogo extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
+                  // Same mark as the launcher icon (tool/make_app_icon.py).
+                  Image.asset(
+                    appIconAsset,
                     width: 56 * s,
                     height: 56 * s,
-                    decoration: BoxDecoration(
-                      color: HyundaiColors.gold,
-                      borderRadius: BorderRadius.circular(16 * s),
-                    ),
-                    child: CustomPaint(painter: _PinPainter(s)),
+                    filterQuality: FilterQuality.medium,
+                    excludeFromSemantics: true,
                   ),
                   SizedBox(width: 16 * s),
                   Text(
@@ -78,25 +80,4 @@ class GlassLogo extends StatelessWidget {
       ),
     );
   }
-}
-
-class _PinPainter extends CustomPainter {
-  const _PinPainter(this.s);
-
-  final double s;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = HyundaiColors.lightSand
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.6 * s
-      ..strokeCap = StrokeCap.round;
-    final c = size.center(Offset.zero);
-    canvas.drawCircle(c + Offset(0, -6 * s), 6.5 * s, paint);
-    canvas.drawLine(c + Offset(0, 0.5 * s), c + Offset(0, 13 * s), paint);
-  }
-
-  @override
-  bool shouldRepaint(_PinPainter oldDelegate) => oldDelegate.s != s;
 }

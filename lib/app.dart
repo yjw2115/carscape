@@ -136,17 +136,8 @@ class _CarscapeAppState extends State<CarscapeApp> with WidgetsBindingObserver {
       );
     }
     if (!context.mounted) return;
-    final team = await saveRecordDialog(context, records, theme.id, result);
-    if (team == null || !context.mounted) return;
-    await _push<void>(
-      context,
-      (_) => MyPage(
-        records: records,
-        progress: progress,
-        highlightStory: theme.id,
-        highlightTeam: team,
-      ),
-    );
+    // "홈 화면으로": after the badge and the team record, stay on home.
+    await saveRecordDialog(context, records, theme.id, result);
   }
 
   @override
