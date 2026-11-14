@@ -18,9 +18,8 @@ Color _tierColor(BadgeTier t) => switch (t) {
 IconData _motif(String id) => switch (id) {
   tutorialBadgeId => Icons.school_outlined,
   storyFrozenNight => Icons.ac_unit_rounded,
-  'case01' => Icons.water_drop_outlined,
-  'case02' => Icons.local_parking_rounded,
-  'case03' => Icons.explore_outlined,
+  'case01' => Icons.local_parking_rounded,
+  'case02' => Icons.schedule_rounded,
   _ => Icons.star_outline_rounded,
 };
 

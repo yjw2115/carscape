@@ -910,17 +910,40 @@ class _TutorialScreenState extends State<TutorialScreen>
           ),
         ),
         const SizedBox(height: 24),
-        _sandButton(
-          key: const Key('start-tutorial'),
-          // While the car is not ready, the button says why.
-          label: c.readyToStart
-              ? '시작하기'
-              : !c.connected
-              ? '차량 연결 중…'
-              : !c.parked
-              ? 'P단에서 시작할 수 있어요'
-              : '차량 확인 중…',
-          onPressed: c.readyToStart ? _start : null,
+        Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            _sandButton(
+              key: const Key('start-tutorial'),
+              // While the car is not ready, the button says why.
+              label: c.readyToStart
+                  ? '시작하기'
+                  : !c.connected
+                  ? '차량 연결 중…'
+                  : !c.parked
+                  ? 'P단에서 시작할 수 있어요'
+                  : '차량 확인 중…',
+              onPressed: c.readyToStart ? _start : null,
+            ),
+            // Not started yet, so leaving needs no confirmation.
+            if (Navigator.canPop(context))
+              OutlinedButton.icon(
+                key: const Key('intro-home'),
+                onPressed: () => Navigator.pop(context),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(160, 80),
+                  backgroundColor: const Color(0x99101E2C),
+                  textStyle: const TextStyle(
+                    fontFamily: 'NotoSansKR',
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                icon: const Icon(Icons.home_rounded, size: 28),
+                label: const Text('홈으로'),
+              ),
+          ],
         ),
       ],
     ),

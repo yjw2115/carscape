@@ -27,6 +27,7 @@ flutter:
     - assets/brand/
     - assets/frozen_night/art/
     - assets/frozen_night/voice/
+    - assets/themes/
   fonts:
     - family: NotoSansKR
       fonts:

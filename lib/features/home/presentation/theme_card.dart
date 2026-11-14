@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../domain/escape_theme.dart';
 import '../integration/parking_status_source.dart';
 import 'home_palette.dart';
-import 'theme_art.dart';
 
 /// One theme tile. [emphasis] is 1 when the card sits in the selected slot
 /// and fades to 0 as it moves away.
@@ -67,7 +66,7 @@ class ThemeCard extends StatelessWidget {
                       fit: BoxFit.cover,
                       excludeFromSemantics: true,
                     )
-                  : CustomPaint(painter: ThemeArtPainter(theme.art!)),
+                  : _Mystery(s: s),
             ),
             Expanded(
               child: Padding(
@@ -119,7 +118,7 @@ class ThemeCard extends StatelessWidget {
                             palette: p,
                             parking: parking,
                             onStart: onStart,
-                            locked: locked,
+                            locked: theme.comingSoon ? '곧 공개돼요' : locked,
                           ),
                         ),
                       ),
@@ -133,6 +132,34 @@ class ThemeCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Card top for the coming-soon teaser: a big question mark in the dark.
+class _Mystery extends StatelessWidget {
+  const _Mystery({required this.s});
+
+  final double s;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: const BoxDecoration(
+      gradient: RadialGradient(
+        radius: 0.9,
+        colors: [Color(0xFF2A3446), Color(0xFF0B0F17)],
+      ),
+    ),
+    child: Center(
+      child: Text(
+        '?',
+        style: TextStyle(
+          fontSize: 260 * s,
+          fontWeight: FontWeight.w600,
+          height: 1,
+          color: Colors.white.withValues(alpha: 0.85),
+        ),
+      ),
+    ),
+  );
 }
 
 class _Chip extends StatelessWidget {
