@@ -3,6 +3,25 @@
 차 안의 사람들이 차량 버튼을 단서로 힘을 합치는 차량 방탈출 앱.
 **Android에서는 실제 Pleos Vehicle SDK 입력**, 브라우저에서는 화면 버튼을 사용하는 튜토리얼을 제공한다. 조명 단계에서는 순서 오류 시 실제 독서등을 모두 끄고, 다른 장치는 상태를 읽어 진행한다.
 
+## 공모전 제출 정보
+
+| 항목 | 내용 |
+|---|---|
+| 앱 이름 | Carscape (첫 번째 스토리 「얼어붙은 밤」) |
+| 한 줄 소개 | 차의 실제 버튼(조명·공조·창문·와이퍼·휠)을 조작해 퍼즐을 푸는 차량 안 방탈출 게임 |
+| APK 위치 | [`apk/Carscape_Carscape_release.apk`](apk/Carscape_Carscape_release.apk) (release, 약 99MB) |
+| 에뮬레이터 | Pleos Connect v2.1.0 (Android 14 / API 34, arm64-v8a 시스템 이미지) |
+| 화면 규격 | 에뮬레이터 2560×1440, 앱 영역 1682×1210 (가로) |
+| 지원 ABI | arm64-v8a, x86_64 |
+
+APK 설치·실행 방법은 아래 [Android / Pleos 에뮬레이터에서 체험하기](#android--pleos-에뮬레이터에서-체험하기)를, 빌드 환경은 [개발 환경](#개발-환경)을 따른다. 같은 APK를 다시 만들려면 다음을 실행한다.
+
+```bash
+flutter build apk --release --target-platform android-arm64,android-x64
+```
+
+release 빌드는 코드 축소(R8)를 끈다. 켜면 Pleos SDK 내부의 Gson 타입 정보가 지워져 모든 차량 상태 확인이 실패한다(`android/app/build.gradle.kts`).
+
 ## 바로 체험하기 (Windows)
 
 1. 이 폴더의 **`play-tutorial.cmd`를 더블클릭**한다.
@@ -20,8 +39,8 @@
 
 ## Android / Pleos 에뮬레이터에서 체험하기
 
-1. Android Studio의 **Device Manager**에서 `Pleos_Connect_v2_1`의 메뉴를 열고 **Cold Boot**로 실행한다.
-2. 빌드된 `build/app/outputs/flutter-apk/app-debug.apk`를 에뮬레이터 창에 끌어다 놓아 설치한다.
+1. Android Studio의 **Device Manager**에서 Pleos Connect v2.1.0 에뮬레이터의 메뉴를 열고 **Cold Boot**로 실행한다.
+2. 레포의 `apk/Carscape_Carscape_release.apk`를 에뮬레이터 창에 끌어다 놓아 설치한다(또는 `adb install -r apk/Carscape_Carscape_release.apk`).
 3. 앱 목록에서 **Carscape**를 연다.
 4. [Pleos Virtual Console](http://127.0.0.1:8088/)을 PC 브라우저에서 열고 **계속 켜 둔다**. 이 PC에서는 포트 연결을 준비했다. 다시 연결하는 방법은 [차량 입력 시험 안내](docs/tutorial-vehicle-testing.md)를 참고한다.
 5. 앱에서 차량 연결과 P단이 확인되면 이야기를 시작한다. **Android 모드에는 퍼즐용 차량 조작 버튼이 없다.** 콘솔이나 차량의 조작에 따른 SDK 상태 변화로 진행한다.
@@ -32,9 +51,9 @@
 
 마지막은 앞 와이퍼를 켜서 성에를 걷고 오른쪽에 나타난 대피소로 향하는 단계다. 시야 확보 후 휠 중앙 → 오른쪽 +30° 이상으로 조작하면 도착과 결과로 이어진다. 현재 AVD의 SDK 각도 부호는 콘솔과 반대여서 앱에서 오른쪽 양수로 정규화한다.
 
-**임시 시험용 「이전 단계 / 다음 단계 / 처음으로」 버튼**이 화면 아래에 있다. 대사 중에도 사용할 수 있다. 단계 이동을 사용한 결과에는 테스트 기록이라고 표시한다. 숨기려면 빌드에 `--dart-define=TUTORIAL_TEST_NAVIGATION=false`를 추가한다. 단계별 콘솔 조작과 수치표는 [차량 입력 시험 안내](docs/tutorial-vehicle-testing.md)에 있다.
+debug 빌드에는 **임시 시험용 「이전 단계 / 다음 단계 / 처음으로」 버튼**이 화면 아래에 있다. 대사 중에도 사용할 수 있고, 단계 이동을 사용한 결과에는 테스트 기록이라고 표시한다. 제출용 release APK에는 이 버튼이 없다. release에서 켜려면 빌드에 `--dart-define=TUTORIAL_TEST_NAVIGATION=true`를 추가한다. 단계별 콘솔 조작과 수치표는 [차량 입력 시험 안내](docs/tutorial-vehicle-testing.md)에 있다.
 
-debug APK는 로컬 확인용이며 공모전 제출용 release APK가 아니다. APK가 없는 새 체크아웃에서는 아래 빌드를 먼저 한다. `apk/`에 제출물을 업로드하거나 외부로 게시하는 작업은 하지 않았다.
+`build/app/outputs/flutter-apk/app-debug.apk`는 로컬 확인용이며 Git에 포함되지 않는다. 공모전 제출용은 `apk/` 폴더의 release APK다.
 
 ## 개발 환경
 
@@ -59,7 +78,7 @@ flutter run -d chrome
 flutter build apk --debug --target-platform android-x64,android-arm64
 ```
 
-공모전 [공식 개발 환경](https://appdevchallenge.auto-hmg.io/guide/development)과 [제출 안내](https://appdevchallenge.auto-hmg.io/guide/submission)도 참고한다. 현재 APK는 체험용이며 실차 지원/최종 제출 완료를 뜻하지 않는다.
+공모전 [공식 개발 환경](https://appdevchallenge.auto-hmg.io/guide/development)과 [제출 안내](https://appdevchallenge.auto-hmg.io/guide/submission)도 참고한다. 제출 APK는 Pleos Connect 에뮬레이터에서 확인했으며 실차 검증을 뜻하지 않는다.
 
 ## 담당 범위와 팀 연결
 
