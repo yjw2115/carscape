@@ -19,7 +19,13 @@ class TutorialController extends ChangeNotifier {
   ];
   static const baseTemperature = 20.0;
   static const minimumTemperature = 16.0;
-  static const steeringThreshold = 30.0;
+
+  /// Any rightward turn of at least this many degrees, measured from where
+  /// the wheel was when the shelter came into view, finishes the escape.
+  static const steeringTurn = 5.0;
+
+  /// The front defroster only softens the snow; the wiper still clears it.
+  static const maxMelt = .4;
   Timer? _timer;
   final Stopwatch _clock = Stopwatch();
   Duration _lastClock = Duration.zero;
@@ -42,8 +48,10 @@ class TutorialController extends ChangeNotifier {
   bool gloveboxOpen = false;
   bool? _heaterState = false;
   bool? _wiperState = false;
+  bool? _defrosterState = false;
   bool get heaterOn => _heaterState == true;
   bool get wiperOn => _wiperState == true;
+  bool get defrosterOn => _defrosterState == true;
   bool _heaterActivated = false;
   bool _windowAdjusted = false;
   bool _wiperActivated = false;
@@ -72,7 +80,10 @@ class TutorialController extends ChangeNotifier {
   int ambientRevision = 0;
   double? steeringAngle = 0;
   double visibility = 0;
-  bool _steeringArmed = false;
+
+  /// 0–[maxMelt]: how much of the windshield snow the defroster has softened.
+  double melt = 0;
+  double? _steeringBase;
   bool get shelterVisible => visibility >= .999;
   bool get inLightPuzzle =>
       stage == TutorialStage.blackout || stage == TutorialStage.power;
@@ -167,6 +178,7 @@ class TutorialController extends ChangeNotifier {
     _observedLights.updateAll((_, _) => null);
     _heaterState = null;
     _wiperState = null;
+    _defrosterState = null;
     windows.updateAll((_, _) => null);
     doors.updateAll((_, _) => null);
     steeringAngle = null;
@@ -204,8 +216,9 @@ class TutorialController extends ChangeNotifier {
     }
     if (next == TutorialStage.escape) {
       visibility = 0;
+      melt = 0;
       _wiperActivated = false;
-      _steeringArmed = false;
+      _steeringBase = null;
     }
     if (next == TutorialStage.result) {
       _clock.stop();
@@ -287,13 +300,14 @@ class TutorialController extends ChangeNotifier {
       } else {
         _ventilationStable = 0;
       }
-    } else if (stage == TutorialStage.escape &&
-        _wiperActivated &&
-        wiperOn &&
-        visibility < 1) {
-      visibility = (visibility + seconds / 3).clamp(0.0, 1.0);
-      if (shelterVisible) {
-        _steeringArmed = steeringAngle != null && steeringAngle!.abs() <= 10;
+    } else if (stage == TutorialStage.escape) {
+      if (defrosterOn && melt < maxMelt) {
+        melt = math.min(maxMelt, melt + seconds * maxMelt / 6);
+      }
+      if (_wiperActivated && wiperOn && visibility < 1) {
+        visibility = (visibility + seconds / 3).clamp(0.0, 1.0);
+        // A wheel already turned before this moment does not count.
+        if (shelterVisible) _steeringBase = steeringAngle;
       }
     }
     _evaluate();
@@ -401,6 +415,8 @@ class TutorialController extends ChangeNotifier {
     }
     if (input.kind == VehicleInputKind.issue) {
       final key = input.data?['feature'] as String? ?? 'vehicle';
+      // The defroster is optional scenery; its absence never blocks play.
+      if (key.startsWith('frontDefroster')) return;
       if (key.startsWith('door:') &&
           !_isCabinDoor(key.substring('door:'.length))) {
         return;
@@ -465,17 +481,21 @@ class TutorialController extends ChangeNotifier {
         doors[area] = input.known ? on : null;
       case VehicleInputKind.steering:
         steeringAngle = input.known ? input.value.toDouble() : null;
-        if (stage == TutorialStage.escape &&
-            shelterVisible &&
-            wasAccepting &&
-            input.known) {
-          if (input.value.abs() <= 10) _steeringArmed = true;
-          if (!input.initial &&
-              _steeringArmed &&
-              input.value >= steeringThreshold) {
+        if (stage == TutorialStage.escape && shelterVisible && input.known) {
+          final angle = input.value.toDouble();
+          final base = _steeringBase;
+          // The base follows the wheel leftward, so only a rightward change
+          // from the wheel's position counts, wherever it started.
+          if (base == null || angle < base) {
+            _steeringBase = angle;
+          } else if (wasAccepting &&
+              !input.initial &&
+              angle - base >= steeringTurn) {
             _enter(TutorialStage.arrival);
           }
         }
+      case VehicleInputKind.frontDefroster:
+        _defrosterState = input.known ? on : null;
       case VehicleInputKind.window:
         if (seat != null) {
           final previous = windows[seat];

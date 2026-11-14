@@ -152,7 +152,7 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
             pending[key] = request
             val observedKey = when {
                 key.startsWith("light:") -> "cabinLight:${key.removePrefix("light:")}"
-                key == "wiper" || key == "parking" || key == "steering" -> "$key:global"
+                key == "wiper" || key == "frontDefroster" || key == "parking" || key == "steering" -> "$key:global"
                 else -> key
             }
             val hadValue = values.containsKey(observedKey)
@@ -167,6 +167,7 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
                     key.startsWith("door:") -> emit("door", null, key.removePrefix("door:"))
                     key.startsWith("heater") -> emit("passengerHeater", null)
                     key == "wiper" -> emit("wiper", null)
+                    key == "frontDefroster" -> emit("frontDefroster", null)
                     key == "steering" -> emit("steering", null)
                     key == "parking" -> emit("parking", false)
                 }
@@ -221,7 +222,7 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
     }
 
     private fun discover(sdk: Vehicle, session: Int) {
-        checksPending = 7
+        checksPending = 8
         val light = sdk.getLight()
         light.checkReadingLightStateCapabilities(onComplete = { config, areas -> main.post {
             if (!active(session)) return@post
@@ -395,6 +396,26 @@ class TutorialVehicleBridge(context: Context, messenger: BinaryMessenger) : Even
             }
             checkFinished(session)
         } }, onFailed = { issue("wiper", it.message ?: "와이퍼 지원 확인 실패"); checkFinished(session) })
+
+        // Optional scenery for the last chapter: an unsupported defroster is
+        // logged only, never reported as an issue that would pause the story.
+        val frontGlass = windowArea(WindowValue.FRONT_WINDSHIELD)
+        hvac.checkHvacDefrosterCapabilities(onComplete = { config: CapabilityConfig, areas: List<WindowArea> -> main.post {
+            if (!active(session)) return@post
+            val supported = readable(config) && areas.contains(frontGlass)
+            capabilities["frontDefroster"] = supported
+            if (!supported) Log.i(TAG, "Front defroster state is not readable")
+            if (supported) {
+                val output: (Any?) -> Unit = { emit("frontDefroster", it == true) }
+                installReader("frontDefroster", session, { ok, fail -> hvac.getHvacDefrosterState(frontGlass, ok, fail) }, output)
+                val listener = object : HvacDefrosterStateListener {
+                    override fun onHvacDefrosterStateUpdated(state: Boolean?) { if (active(session) && state != null) main.post { output(state) } }
+                    override fun onFailed(e: Exception) { Log.w(TAG, "Front defroster updates failed", e) }
+                }
+                try { hvac.registerHvacDefrosterState(frontGlass, listener); cleanup.add { hvac.unregisterHvacDefrosterState(frontGlass, listener) } } catch (e: Exception) { Log.w(TAG, "Front defroster subscription failed", e) }
+            }
+            checkFinished(session)
+        } }, onFailed = { Log.w(TAG, "Front defroster check failed", it); checkFinished(session) })
 
         val door = sdk.getDoor()
         door.checkDoorPositionCapabilities(onComplete = { config, areas -> main.post {

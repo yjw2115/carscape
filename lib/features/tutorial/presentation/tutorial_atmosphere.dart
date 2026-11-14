@@ -4,7 +4,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../domain/tutorial_controller.dart';
-import 'tutorial_style.dart';
+import 'tutorial_instruments.dart';
+
+export 'tutorial_instruments.dart' show gasColor;
 
 const frozenNightCabin = 'assets/frozen_night/art/cabin.jpg';
 const frozenNightRoad = 'assets/frozen_night/art/road.jpg';
@@ -13,9 +15,14 @@ const _snowAsset = 'assets/frozen_night/art/windshield_snow.jpg';
 const _gasAsset = 'assets/frozen_night/art/cabin_gas.png';
 
 class VentilationDashboard extends StatelessWidget {
-  const VentilationDashboard({super.key, required this.controller});
+  const VentilationDashboard({
+    super.key,
+    required this.controller,
+    this.contentInset = EdgeInsets.zero,
+  });
 
   final TutorialController controller;
+  final EdgeInsets contentInset;
 
   @override
   Widget build(BuildContext context) => Stack(
@@ -67,39 +74,45 @@ class VentilationDashboard extends StatelessWidget {
             ),
           ),
         ),
-      LayoutBuilder(
-        builder: (context, box) {
-          final compact = box.maxHeight < 340 || box.maxWidth < 485;
-          final padding = compact ? 12.0 : 24.0;
-          return Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1020, maxHeight: 390),
-              child: Padding(
-                padding: EdgeInsets.all(padding),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      flex: 6,
-                      child: _GasInstrument(
-                        level: controller.gasLevel,
-                        compact: compact,
+      Padding(
+        padding: contentInset,
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final compact = box.maxHeight < 340 || box.maxWidth < 485;
+            final padding = compact ? 12.0 : 24.0;
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 1060,
+                  maxHeight: 450,
+                ),
+                child: Padding(
+                  padding: EdgeInsets.all(padding),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        flex: 11,
+                        child: GasGauge(
+                          level: controller.gasLevel,
+                          compact: compact,
+                        ),
                       ),
-                    ),
-                    SizedBox(width: compact ? 10 : 18),
-                    Expanded(
-                      flex: 5,
-                      child: _TemperatureInstrument(
-                        temperature: controller.cabinTemperature,
-                        compact: compact,
+                      SizedBox(width: compact ? 10 : 18),
+                      Expanded(
+                        flex: 9,
+                        child: ThermometerGauge(
+                          temperature: controller.cabinTemperature,
+                          compact: compact,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     ],
   );
@@ -225,313 +238,6 @@ class _SmokeDriftState extends State<_SmokeDrift>
   );
 }
 
-class _InstrumentShell extends StatelessWidget {
-  const _InstrumentShell({required this.child, required this.compact});
-
-  final Widget child;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      gradient: const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF42515C), Color(0xFF25323D), Color(0xFF151E24)],
-      ),
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: const Color(0xFF697C88), width: 1),
-      boxShadow: const [
-        BoxShadow(color: Colors.black54, blurRadius: 15, offset: Offset(0, 6)),
-      ],
-    ),
-    child: Padding(padding: EdgeInsets.all(compact ? 9 : 14), child: child),
-  );
-}
-
-class _GasInstrument extends StatelessWidget {
-  const _GasInstrument({required this.level, required this.compact});
-
-  final double level;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final safe = level <= .01;
-    final percent = level.clamp(0.0, 100.0) / 100;
-    final tint = safe
-        ? TutorialColors.success
-        : Color.lerp(
-            const Color(0xFFFFCA75),
-            const Color(0xFFFF906E),
-            percent,
-          )!;
-    return _InstrumentShell(
-      compact: compact,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Icon(
-                safe ? Icons.verified_outlined : Icons.warning_amber_rounded,
-                color: tint,
-                size: compact ? 18 : 24,
-              ),
-              const SizedBox(width: 6),
-              const Flexible(
-                child: Text(
-                  '가스 농도',
-                  maxLines: 1,
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF243331), Color(0xFF101A1D)],
-                ),
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(color: const Color(0xFF0A1218), width: 2),
-              ),
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: compact ? 8 : 14,
-                  vertical: 7,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: Center(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            '${level.round()}%',
-                            style: TextStyle(
-                              color: tint,
-                              fontSize: compact ? 41 : 76,
-                              fontFamily: 'monospace',
-                              fontWeight: FontWeight.w600,
-                              fontFeatures: const [
-                                FontFeature.tabularFigures(),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      height: compact ? 11 : 15,
-                      child: Row(
-                        children: List.generate(
-                          12,
-                          (i) => Expanded(
-                            child: Container(
-                              margin: const EdgeInsets.only(right: 2),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(2),
-                                color: i == 0
-                                    ? TutorialColors.success
-                                    : percent >= i / 12
-                                    ? tint
-                                    : const Color(0xFF31424B),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    const Text(
-                      '안전 0%',
-                      style: TextStyle(
-                        color: TutorialColors.success,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TemperatureInstrument extends StatelessWidget {
-  const _TemperatureInstrument({
-    required this.temperature,
-    required this.compact,
-  });
-
-  final double temperature;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final safe = temperature >= TutorialController.minimumTemperature - .01;
-    final tint = safe ? TutorialColors.success : TutorialColors.ice;
-    return _InstrumentShell(
-      compact: compact,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            '실내 온도',
-            maxLines: 1,
-            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
-          ),
-          const SizedBox(height: 6),
-          Expanded(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 294,
-                  maxHeight: 270,
-                ),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: compact ? 45 : 94,
-                      height: double.infinity,
-                      child: CustomPaint(
-                        painter: _Thermometer(temperature, tint),
-                      ),
-                    ),
-                    SizedBox(width: compact ? 4 : 14),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Flexible(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                '${temperature.toStringAsFixed(1)}°C',
-                                style: TextStyle(
-                                  color: tint,
-                                  fontSize: compact ? 29 : 43,
-                                  fontWeight: FontWeight.w600,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures(),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const Text(
-                            '안전 16°C 이상',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: TutorialColors.success,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Thermometer extends CustomPainter {
-  const _Thermometer(this.temperature, this.tint);
-  final double temperature;
-  final Color tint;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.height < 24) return;
-    final radius = math.min(size.width * .23, size.height * .15);
-    final x = size.width * .25;
-    final top = 4.0;
-    final bottom = size.height - radius - 3;
-    final tube = Rect.fromLTRB(x - radius * .52, top, x + radius * .52, bottom);
-    final glass = RRect.fromRectAndRadius(tube, Radius.circular(radius));
-    final fraction = ((temperature + 20) / 40).clamp(0.0, 1.0);
-    final fillY = bottom - fraction * tube.height;
-    final bulb = Offset(x, bottom);
-    canvas.drawRRect(glass, Paint()..color = const Color(0xFF0D1721));
-    canvas.drawCircle(bulb, radius, Paint()..color = const Color(0xFF0D1721));
-    canvas.save();
-    canvas.clipRRect(glass);
-    canvas.drawRect(
-      Rect.fromLTRB(tube.left, fillY, tube.right, bottom),
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [
-            tint.withValues(alpha: .67),
-            tint,
-            tint.withValues(alpha: .78),
-          ],
-          stops: const [0, .40, 1],
-        ).createShader(tube),
-    );
-    canvas.restore();
-    canvas.drawRRect(
-      glass,
-      Paint()
-        ..color = const Color(0xFF8297A6)
-        ..strokeWidth = 1
-        ..style = PaintingStyle.stroke,
-    );
-    canvas.drawCircle(bulb, radius * .73, Paint()..color = tint);
-    for (var i = 0; i <= 10; i++) {
-      final y = top + tube.height * i / 10;
-      final major = i.isEven;
-      canvas.drawLine(
-        Offset(tube.right + 4, y),
-        Offset(tube.right + (major ? 13 : 9), y),
-        Paint()
-          ..color = i <= 1 ? TutorialColors.success : const Color(0xFF98ACB9)
-          ..strokeWidth = major ? 1.4 : .8,
-      );
-      if (size.width >= 78 &&
-          size.height >= 100 &&
-          (i == 0 || i == 1 || i == 5 || i == 10)) {
-        final scale = TextPainter(
-          text: TextSpan(
-            text: '${20 - 4 * i}',
-            style: TextStyle(
-              color: i == 1 ? TutorialColors.success : const Color(0xFFABBAC3),
-              fontSize: 12,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        scale.paint(canvas, Offset(tube.right + 18, y - scale.height / 2));
-        scale.dispose();
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _Thermometer oldDelegate) =>
-      oldDelegate.temperature != temperature || oldDelegate.tint != tint;
-}
-
 class EscapeView extends StatelessWidget {
   const EscapeView({super.key, required this.controller});
 
@@ -561,16 +267,21 @@ class EscapeView extends StatelessWidget {
                 clipper: _RemainingSnow(progress),
                 child: Opacity(
                   opacity: 1 - ((progress - .52) / .48).clamp(0.0, 1.0),
-                  child: Image.asset(
-                    _snowAsset,
-                    fit: BoxFit.cover,
-                    excludeFromSemantics: true,
-                    frameBuilder: (context, child, frame, _) => frame == null
-                        ? const ColoredBox(color: Color(0xFFC5CBD1))
-                        : child,
+                  child: _MeltingSnow(
+                    melt: controller.melt,
+                    child: Image.asset(
+                      _snowAsset,
+                      fit: BoxFit.cover,
+                      excludeFromSemantics: true,
+                      frameBuilder: (context, child, frame, _) => frame == null
+                          ? const ColoredBox(color: Color(0xFFC5CBD1))
+                          : child,
+                    ),
                   ),
                 ),
               ),
+            if (controller.defrosterOn && progress < 1)
+              const IgnorePointer(child: _DefrosterGlow()),
             if (progress > 0 && progress < 1)
               CustomPaint(painter: _WiperBlades(progress)),
           ],
@@ -578,6 +289,51 @@ class EscapeView extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The defroster blows warm air up from the dashboard, so the snow thins
+/// from the bottom edge first. It never clears the glass on its own.
+class _MeltingSnow extends StatelessWidget {
+  const _MeltingSnow({required this.melt, required this.child});
+
+  final double melt;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (melt <= .001) return child;
+    final reach = (melt * 1.4).clamp(0.0, .7);
+    return ShaderMask(
+      key: const Key('melting-snow'),
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (rect) => LinearGradient(
+        begin: Alignment.bottomCenter,
+        end: Alignment.topCenter,
+        colors: [
+          Colors.white.withValues(alpha: 1 - melt * 1.5),
+          Colors.white.withValues(alpha: 1 - melt * .8),
+          Colors.white,
+        ],
+        stops: [0, reach, (reach + .3).clamp(0.0, 1.0)],
+      ).createShader(rect),
+      child: child,
+    );
+  }
+}
+
+class _DefrosterGlow extends StatelessWidget {
+  const _DefrosterGlow();
+
+  @override
+  Widget build(BuildContext context) => const DecoratedBox(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.bottomCenter,
+        end: Alignment(0, .2),
+        colors: [Color(0x38FFB46B), Color(0x00FFB46B)],
+      ),
+    ),
+  );
 }
 
 const _leftStop = -math.pi + .16;

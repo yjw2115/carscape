@@ -7,21 +7,30 @@ import '../domain/tutorial_models.dart';
 import 'tutorial_atmosphere.dart';
 
 class TutorialArtwork extends StatelessWidget {
-  const TutorialArtwork({super.key, required this.controller});
+  const TutorialArtwork({
+    super.key,
+    required this.controller,
+    this.contentInset = EdgeInsets.zero,
+  });
 
   final TutorialController controller;
 
+  /// Keeps instruments clear of overlays such as the browser demo controls;
+  /// the photo itself still fills the screen.
+  final EdgeInsets contentInset;
+
+  /// Full-bleed: each chapter's scene fills the whole story screen.
   @override
-  Widget build(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(22),
-    child: switch (controller.stage) {
-      TutorialStage.power => _Blueprint(controller: controller),
-      TutorialStage.glovebox => _ColdCabin(warm: controller.heaterOn),
-      TutorialStage.ventilation => VentilationDashboard(controller: controller),
-      TutorialStage.escape => EscapeView(controller: controller),
-      _ => const SnowBackdrop(shelter: true),
-    },
-  );
+  Widget build(BuildContext context) => switch (controller.stage) {
+    TutorialStage.power => _Blueprint(controller: controller),
+    TutorialStage.glovebox => _ColdCabin(warm: controller.heaterOn),
+    TutorialStage.ventilation => VentilationDashboard(
+      controller: controller,
+      contentInset: contentInset,
+    ),
+    TutorialStage.escape => EscapeView(controller: controller),
+    _ => const SnowBackdrop(shelter: true),
+  };
 }
 
 class SnowBackdrop extends StatelessWidget {
@@ -370,25 +379,6 @@ class _ColdCabin extends StatelessWidget {
             end: Alignment.center,
             colors: [Color(0xE00A131A), Colors.transparent],
           ),
-        ),
-      ),
-      Positioned(
-        left: 20,
-        bottom: 19,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              warm ? Icons.air_rounded : Icons.ac_unit_rounded,
-              size: 21,
-              color: warm ? const Color(0xFFFFC783) : const Color(0xFFADE0FF),
-            ),
-            const SizedBox(width: 9),
-            Text(
-              warm ? '따뜻해진 조수석' : '서리 낀 조수석',
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-            ),
-          ],
         ),
       ),
     ],

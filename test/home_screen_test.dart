@@ -124,7 +124,7 @@ void main() {
     await pumpHome(tester);
 
     final chip = find
-        .ancestor(of: find.text('2~4인').first, matching: find.byType(Container))
+        .ancestor(of: find.text('1~4인').first, matching: find.byType(Container))
         .first;
     expect(tester.getSize(chip).width, lessThan(200));
   });
