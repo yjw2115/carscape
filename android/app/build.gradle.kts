@@ -34,6 +34,10 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // R8 strips the generic signatures the Pleos SDK's Gson TypeTokens need,
+            // so every vehicle capability/get call fails in release. Keep code as-is.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
