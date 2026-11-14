@@ -21,7 +21,7 @@ const homeReferenceSize = Size(1682, 1210);
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
-    this.themes = escapeThemes,
+    this.themes = homeThemes,
     this.parkingSource,
     this.brightness,
     this.onTutorial,

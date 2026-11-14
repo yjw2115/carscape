@@ -98,14 +98,19 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel('이전 테마'));
     await tester.pumpAndSettle();
+    // The coming-soon teaser closes the loop and can't be started.
+    expect(find.text('곧 공개돼요').hitTestable(), findsOneWidget);
+    expect(startButton(), findsNothing);
+    await tester.tap(find.bySemanticsLabel('이전 테마'));
+    await tester.pumpAndSettle();
     await tester.tap(startButton());
-    expect(started.last.id, 'case03');
+    expect(started.last.id, 'case02');
   });
 
   testWidgets('tapping a preview card selects it', (tester) async {
     await pumpHome(tester);
 
-    await tester.tap(find.bySemanticsLabel('시간당 120mm 테마 보기'));
+    await tester.tap(find.bySemanticsLabel('자정의 주차장 테마 보기'));
     await tester.pumpAndSettle();
     await tester.tap(startButton());
     expect(started.single.id, 'case01');

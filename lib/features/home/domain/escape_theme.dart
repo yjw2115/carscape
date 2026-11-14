@@ -1,16 +1,12 @@
-/// Illustration drawn at the top of a theme card.
-enum ThemeArt { downpour, parkingLot, missingDriver }
-
 /// A playable escape theme shown on the home carousel.
 class EscapeTheme {
   const EscapeTheme({
     required this.id,
     required this.title,
     required this.description,
-    required this.chips,
-    this.art,
+    this.chips = const [],
     this.photo,
-  }) : assert(art != null || photo != null);
+  });
 
   final String id;
   final String title;
@@ -19,18 +15,17 @@ class EscapeTheme {
   /// Short facts shown above the start button, e.g. play time and players.
   final List<String> chips;
 
-  /// Drawn illustration for the card top, used when there is no [photo].
-  final ThemeArt? art;
-
-  /// Image asset for the card top, e.g. the story's own opening scene.
+  /// Image asset for the card top. Null only for [comingSoonTheme].
   final String? photo;
+
+  /// Teaser card with no story behind it yet.
+  bool get comingSoon => photo == null;
 }
 
 /// Story id of "얼어붙은 밤", also used as its record key.
 const storyFrozenNight = 'story01';
 
-/// Placeholder catalog taken from the design draft (design/png/06_Main.png).
-/// Replace once the main scenarios are decided.
+/// Playable stories, in carousel order. Records and badges list these.
 const escapeThemes = <EscapeTheme>[
   // First story: the former tutorial (features/tutorial, 문성훈).
   EscapeTheme(
@@ -43,23 +38,27 @@ const escapeThemes = <EscapeTheme>[
   ),
   EscapeTheme(
     id: 'case01',
-    title: '시간당 120mm',
-    description: '기록적인 폭우에 멈춰버린 차. 물이 차오르기 전에 단서를 풀어야 한다.',
+    title: '자정의 주차장',
+    description: '자정의 지하주차장. 저절로 켜진 라디오가 사라진 사람의 마지막 흔적을 들려줘요.',
     chips: ['약 30분', '2~4인', '난이도 ●●○'],
-    art: ThemeArt.downpour,
+    photo: 'assets/themes/midnight_parking.webp',
   ),
   EscapeTheme(
     id: 'case02',
-    title: '자정의 주차장',
-    description: '라디오에서 흘러나오는 낯선 주파수.',
-    chips: ['약 30분', '2~4인', '난이도 ●●○'],
-    art: ThemeArt.parkingLot,
-  ),
-  EscapeTheme(
-    id: 'case03',
-    title: '사라진 운전기사',
-    description: '단서가 가리키는 장소로 직접 달려가야 한다.',
-    chips: ['약 2시간', '지역 코스'],
-    art: ThemeArt.missingDriver,
+    title: '멈춘 시계탑',
+    description: '시계탑이 멈춘 순간, 이 차는 타임머신이 되었어요. 과거와 미래를 오가며 시간을 되돌리세요.',
+    chips: ['약 30분', '2~4인', '난이도 ●●●'],
+    photo: 'assets/themes/clock_tower.jpg',
   ),
 ];
+
+/// Last card on the home carousel, hinting at stories still to come.
+const comingSoonTheme = EscapeTheme(
+  id: 'comingSoon',
+  title: '출시 예정',
+  description: '새로운 사건이 준비되고 있어요. 다음 탈출을 기대해 주세요.',
+  chips: ['새 스토리', 'COMING SOON'],
+);
+
+/// Home carousel: every story, then the coming-soon teaser at the right end.
+const homeThemes = [...escapeThemes, comingSoonTheme];
