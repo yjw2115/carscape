@@ -783,7 +783,10 @@ class _TutorialScreenState extends State<TutorialScreen>
   /// cover the bottom-left buttons.
   static const _narrowWidth = 720.0;
 
+  // expand: the Scaffold body is loose, and without it a lone non-positioned
+  // layer (release builds' empty corner actions) shrank the screen to 0×0.
   Widget _layers(bool narrow) => Stack(
+    fit: StackFit.expand,
     children: [
       Positioned.fill(child: _backdrop(narrow)),
       Positioned.fill(
