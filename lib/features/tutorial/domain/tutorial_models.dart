@@ -29,6 +29,7 @@ enum VehicleInputKind {
   window,
   door,
   wiper,
+  frontDefroster,
   steering,
   parking,
   connection,

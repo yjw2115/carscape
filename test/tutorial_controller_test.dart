@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:carscape/features/tutorial/domain/tutorial_controller.dart';
 import 'package:carscape/features/tutorial/domain/tutorial_models.dart';
 import 'package:carscape/features/tutorial/domain/tutorial_script.dart';
+import 'package:carscape/features/tutorial/presentation/tutorial_atmosphere.dart';
 
 TutorialController controller() =>
     TutorialController(options: const TutorialOptions(enableClock: false));
@@ -296,5 +297,56 @@ void main() {
       c.result!.recordedTime - c.result!.playTime,
       const Duration(minutes: 2),
     );
+  });
+
+  test('a wheel already turned right must still turn a little further', () {
+    final c = controller();
+    addTearDown(c.dispose);
+    toEscape(c);
+    c.receive(const TutorialVehicleInput(VehicleInputKind.steering, 40));
+    c.receive(const TutorialVehicleInput(VehicleInputKind.wiper, 1));
+    runFor(c, 3.2);
+    expect(c.shelterVisible, isTrue);
+    expect(c.stage, TutorialStage.escape);
+    c.receive(const TutorialVehicleInput(VehicleInputKind.steering, 43));
+    expect(c.stage, TutorialStage.escape); // Less than the 5° change.
+    c.receive(const TutorialVehicleInput(VehicleInputKind.steering, 46));
+    expect(c.stage, TutorialStage.arrival);
+  });
+
+  test('turning left first moves the base; then a small right turn wins', () {
+    final c = controller();
+    addTearDown(c.dispose);
+    toEscape(c);
+    c.receive(const TutorialVehicleInput(VehicleInputKind.wiper, 1));
+    runFor(c, 3.2);
+    c.receive(const TutorialVehicleInput(VehicleInputKind.steering, -20));
+    c.receive(const TutorialVehicleInput(VehicleInputKind.steering, -16));
+    expect(c.stage, TutorialStage.escape);
+    c.receive(const TutorialVehicleInput(VehicleInputKind.steering, -14));
+    expect(c.stage, TutorialStage.arrival);
+  });
+
+  test('front defroster melts some snow but never clears the view', () {
+    final c = controller();
+    addTearDown(c.dispose);
+    toEscape(c);
+    c.receive(const TutorialVehicleInput(VehicleInputKind.frontDefroster, 1));
+    runFor(c, 20);
+    expect(c.melt, closeTo(TutorialController.maxMelt, 1e-9));
+    expect(c.visibility, 0);
+    expect(c.shelterVisible, isFalse);
+    c.receive(const TutorialVehicleInput(VehicleInputKind.frontDefroster, 0));
+    expect(c.defrosterOn, isFalse);
+  });
+
+  test('gas reading is red from 70% and green near 0%', () {
+    int argb(double level) => gasColor(level).toARGB32();
+    expect(argb(100), 0xFFFF4E3E);
+    expect(argb(85), 0xFFFF4E3E);
+    expect(argb(70), 0xFFFF4E3E);
+    expect(argb(52), 0xFFFF9B3D);
+    expect(argb(32), 0xFFFFDA4D);
+    expect(argb(5), 0xFF6FDB8F);
   });
 }

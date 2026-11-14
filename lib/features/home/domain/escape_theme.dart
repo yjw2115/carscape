@@ -32,7 +32,7 @@ const escapeThemes = <EscapeTheme>[
     id: storyFrozenNight,
     title: '얼어붙은 밤',
     description: '눈보라 속에 멈춰 버린 차. 완전히 얼어붙기 전에 고치고 탈출해야 한다.',
-    chips: ['약 15분', '2~4인', '실패 없음'],
+    chips: ['약 15분', '1~4인', '난이도 ●○○'],
     // Same image as the story's opening screen (frozenNightCabin).
     photo: 'assets/frozen_night/art/cabin.jpg',
   ),
@@ -40,14 +40,14 @@ const escapeThemes = <EscapeTheme>[
     id: 'case01',
     title: '자정의 주차장',
     description: '자정의 지하주차장. 저절로 켜진 라디오가 사라진 사람의 마지막 흔적을 들려줘요.',
-    chips: ['약 30분', '2~4인', '난이도 ●●○'],
+    chips: ['약 30분', '1~4인', '난이도 ●●○'],
     photo: 'assets/themes/midnight_parking.webp',
   ),
   EscapeTheme(
     id: 'case02',
     title: '멈춘 시계탑',
     description: '시계탑이 멈춘 순간, 이 차는 타임머신이 되었어요. 과거와 미래를 오가며 시간을 되돌리세요.',
-    chips: ['약 30분', '2~4인', '난이도 ●●●'],
+    chips: ['약 30분', '1~4인', '난이도 ●●●'],
     photo: 'assets/themes/clock_tower.jpg',
   ),
 ];

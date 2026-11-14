@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Hyundai Blue, the app icon background. -->
+    <color name="ic_launcher_background">#002C5F</color>
+</resources>
