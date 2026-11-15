@@ -1,7 +1,7 @@
-# Carscape · 얼어붙은 밤
+# Carscape
 
-차 안의 사람들이 차량 버튼을 단서로 힘을 합치는 차량 방탈출 앱.
-**Android에서는 실제 Pleos Vehicle SDK 입력**, 브라우저에서는 화면 버튼을 사용하는 튜토리얼을 제공한다. 조명 단계에서는 순서 오류 시 실제 독서등을 모두 끄고, 다른 장치는 상태를 읽어 진행한다.
+차량의 조명·공조·창문·와이퍼·핸들을 조작해 동승자와 함께 퍼즐을 푸는 차량 방탈출 게임이다.
+홈에서 차량 기능점검, 기본 튜토리얼 3문제, 첫 번째 스토리 「얼어붙은 밤」 4단계를 체험할 수 있다. Pleos Connect에서는 Vehicle SDK로 차량 상태를 읽고, 브라우저에서는 가상 차량을 화면 버튼으로 조작한다.
 
 ## 공모전 제출 정보
 
@@ -9,14 +9,17 @@
 |---|---|
 | 앱 이름 | Carscape (첫 번째 스토리 「얼어붙은 밤」) |
 | 한 줄 소개 | 차의 실제 버튼(조명·공조·창문·와이퍼·휠)을 조작해 퍼즐을 푸는 차량 안 방탈출 게임 |
-| APK 위치 | [`apk/Carscape_Carscape_release.apk`](apk/Carscape_Carscape_release.apk) (release, 약 99MB) |
-| 에뮬레이터 | Pleos Connect v2.1.0 (Android 14 / API 34, arm64-v8a 시스템 이미지) |
-| 화면 규격 | 에뮬레이터 2560×1440, 앱 영역 1682×1210 (가로) |
-| 지원 ABI | arm64-v8a, x86_64 |
+| 실행 방법 | [Pleos에서 APK 설치·실행](#android--pleos-에뮬레이터에서-체험하기) · [Windows 브라우저 체험](#바로-체험하기-windows) |
+| 테스트 환경 및 설정 | Android Studio Device Manager, Android SDK Platform-Tools(ADB), Pleos Virtual Console. 아래 [설치·연결 절차](#android--pleos-에뮬레이터에서-체험하기) 참고 |
+| 에뮬레이터 | Pleos Connect v2.1.0 (Android 14 / API 34, Windows 테스트 AVD는 x86_64) |
+| 화면 규격 | 에뮬레이터 전체 2560 × 1440 px, 앱 레이아웃 기준 1682 × 1210 px (가로) |
+| APK 위치 | [`apk/Carscape_Carscape_release.apk`](apk/Carscape_Carscape_release.apk) (release, 약 99 MiB) |
+| APK 실행 ABI | arm64-v8a, x86_64 |
 
-APK 설치·실행 방법은 아래 [Android / Pleos 에뮬레이터에서 체험하기](#android--pleos-에뮬레이터에서-체험하기)를, 빌드 환경은 [개발 환경](#개발-환경)을 따른다. 같은 APK를 다시 만들려면 다음을 실행한다.
+[개발 환경](#개발-환경)을 준비한 뒤 저장소 루트에서 다음 명령으로 release APK를 빌드할 수 있다. 결과 파일은 `build/app/outputs/flutter-apk/app-release.apk`에 생성된다.
 
 ```bash
+flutter pub get
 flutter build apk --release --target-platform android-arm64,android-x64
 ```
 
@@ -24,34 +27,44 @@ release 빌드는 코드 축소(R8)를 끈다. 켜면 Pleos SDK 내부의 Gson �
 
 ## 바로 체험하기 (Windows)
 
-1. 이 폴더의 **`play-tutorial.cmd`를 더블클릭**한다.
+1. [Flutter SDK](#개발-환경)를 준비한 뒤 이 폴더의 **`play-tutorial.cmd`를 더블클릭**한다.
 2. 첫 실행 준비가 끝나면 브라우저가 열린다. 실행 창은 켜둔다.
-3. 「이야기 시작하기」를 누른다. 음량을 켜고 화면의 차량 버튼을 직접 조작한다.
-4. 대사는 끝나면 자동으로 이어지며 「다음 대사」로 빨리 진행할 수도 있다.
-5. 「나레이션 노트」로 다시 듣기·자막을 볼 수 있다. 힌트 비용 설명은 첫 사용 때만 나오며 이후에는 바로 힌트를 연다.
-6. 끝내려면 브라우저와 실행 창을 닫는다. 결과의 「다시 체험하기」 또는 새로고침으로 처음부터 시작한다.
+3. 홈에서 「튜토리얼」 또는 「얼어붙은 밤」의 「시작하기」를 누른다. 화면의 차량 버튼으로 퍼즐을 진행한다.
+4. 대사는 끝나면 자동으로 이어진다. 화면에 표시되는 진행 버튼으로 먼저 넘어갈 수도 있다.
+5. 「나레이션/힌트」에서 대사를 다시 듣거나 자막을 읽을 수 있다. 힌트를 열면 최종 기록에 1분이 더해진다.
+6. 끝내려면 브라우저와 실행 창을 닫는다.
 
 주소는 [로컬 체험 화면](http://127.0.0.1:8765/)이다. 실행 창이 켜져 있을 때만 접속된다. 창 크기를 약 960×600으로 조절하면 차량 화면에 가까운 배치를 볼 수 있다. 창이 작으면 스크롤해 조작한다.
 
-브라우저에서는 차량 없이 화면 버튼으로 체험한다. 네 단계는 조명 순서 → 히터 → 네 창문으로 가스·온도 균형 → 와이퍼로 시야 확보 후 오른쪽 휠 회전이다. 기존 창문 회로와 안전벨트 단계는 제거했다. 암전은 앱 영역 안의 연출이며 「지금 할 일」 안내는 표시하지 않는다.
-
-한국어 음성이 없는 환경에서는 자막으로 진행한다. Chrome에서 소리가 안 나면 Windows의 한국어 음성 설치 여부를 확인하거나 Edge로 같은 주소를 열어볼 수 있다. 현재 목소리는 체험용 TTS이며 최종 성우 녹음은 포함하지 않았다.
+「얼어붙은 밤」의 브라우저 나레이션은 앱에 포함된 한국어 음성 파일을 재생한다. 대사는 자막으로도 확인할 수 있다.
 
 ## Android / Pleos 에뮬레이터에서 체험하기
 
-1. Android Studio의 **Device Manager**에서 Pleos Connect v2.1.0 에뮬레이터의 메뉴를 열고 **Cold Boot**로 실행한다.
-2. 레포의 `apk/Carscape_Carscape_release.apk`를 에뮬레이터 창에 끌어다 놓아 설치한다(또는 `adb install -r apk/Carscape_Carscape_release.apk`).
-3. 앱 목록에서 **Carscape**를 연다.
-4. [Pleos Virtual Console](http://127.0.0.1:8088/)을 PC 브라우저에서 열고 **계속 켜 둔다**. 이 PC에서는 포트 연결을 준비했다. 다시 연결하는 방법은 [차량 입력 시험 안내](docs/tutorial-vehicle-testing.md)를 참고한다.
-5. 앱에서 차량 연결과 P단이 확인되면 이야기를 시작한다. **Android 모드에는 퍼즐용 차량 조작 버튼이 없다.** 콘솔이나 차량의 조작에 따른 SDK 상태 변화로 진행한다.
+1. Android Studio의 **Device Manager**에서 **Pleos Connect v2.1.0** AVD를 실행한다. 스냅샷 없이 부팅하려면 **Cold Boot**를 선택한다. 차량 입력 시험에는 Pleos Vehicle Service가 포함된 AVD가 필요하다.
+2. 저장소의 [`apk/Carscape_Carscape_release.apk`](apk/Carscape_Carscape_release.apk)를 에뮬레이터 창에 끌어다 놓아 설치한다. 아래 명령 중 `install`을 사용해도 된다.
+3. PC의 PowerShell에서 저장소 루트로 이동해 ADB 포트를 연결한다. `devices` 출력에 표시된 Pleos AVD의 ID가 다르면 `emulator-5554`를 해당 ID로 바꾼다.
 
-조명은 `Convenience → Reading Lights`에서 **Rear left → Rear right → Front left → Front right** 순서로 켠다. 단계 진입/순서 오류 시 앱이 네 등을 모두 끄고 실제 Off를 확인한다. 히터는 공조 전원 On·풍량 1 이상·조수석 온도 26°C 이상이다. 글로브박스 열림은 현재 공개 SDK에 없어 **히터만으로 통과**한다.
+   ```powershell
+   $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+   $pleosEmulator = 'emulator-5554'
+   & $adb devices -l
+   & $adb -s $pleosEmulator forward tcp:8088 tcp:8088
+   # APK를 끌어다 놓았다면 아래 설치 명령은 생략한다.
+   & $adb -s $pleosEmulator install -r 'apk/Carscape_Carscape_release.apk'
+   ```
 
-가스 단계는 **네 창문 각각 20%, 모든 문·트렁크 닫힘**이 현재 해답이다. 크게 열거나 문·트렁크를 열면 게임 속 온도가 떨어지고 화면이 얼어붙는다. 적절히 조절하면 회복되어 계속할 수 있다. 게이지는 실제 가스·온도 센서 측정값이 아닌 게임 수치다.
+4. PC 브라우저에서 [Pleos Connect Virtual Console](http://127.0.0.1:8088/)을 연다. **DDS ONLINE**을 확인하고 콘솔을 켜 둔다. `Emulation Controls`의 `Gear Selection`을 **P**로 설정한다.
+5. 에뮬레이터의 앱 목록에서 **Carscape**를 연다. 홈에서 「기능점검」으로 차량 장치 지원을 확인하거나 「튜토리얼」을 시작한다. 「얼어붙은 밤」을 시험하려면 홈의 스토리 카드에서 「시작하기」를 누른 뒤 시작 화면에서도 「시작하기」를 누른다. 콘솔의 장치를 조작하면 앱이 Vehicle SDK 상태 변화를 읽는다. 플레이는 P단에서 진행한다.
 
-마지막은 앞 와이퍼를 켜서 성에를 걷고 오른쪽에 나타난 대피소로 향하는 단계다. 시야 확보 후 휠 중앙 → 오른쪽 +30° 이상으로 조작하면 도착과 결과로 이어진다. 현재 AVD의 SDK 각도 부호는 콘솔과 반대여서 앱에서 오른쪽 양수로 정규화한다.
+SDK 연결이 확인되면 튜토리얼에서 `Air Recirculation → Recirculate`, `Defroster → Rear → On`, `Air Conditioning → On`을 차례로 시험할 수 있다. 해당 장치가 이미 켜져 있으면 껐다가 다시 켜 입력 변화를 준다.
 
-debug 빌드에는 **임시 시험용 「이전 단계 / 다음 단계 / 처음으로」 버튼**이 화면 아래에 있다. 대사 중에도 사용할 수 있고, 단계 이동을 사용한 결과에는 테스트 기록이라고 표시한다. 제출용 release APK에는 이 버튼이 없다. release에서 켜려면 빌드에 `--dart-define=TUTORIAL_TEST_NAVIGATION=true`를 추가한다. 단계별 콘솔 조작과 수치표는 [차량 입력 시험 안내](docs/tutorial-vehicle-testing.md)에 있다.
+「얼어붙은 밤」에서 `Reading Lights`는 **Rear left → Rear right → Front left → Front right** 순서로 켠다. 앱이 스토리 시작과 순서 오류 시 네 등을 끄고 Off 상태를 확인한다. 난방 단계에서는 공조 전원 On·풍량 1 이상·조수석 목표 온도 26°C 이상을 새로 맞춘다.
+
+가스 단계에서는 `Window Position`으로 **네 창문을 각각 20%** 열고 **네 문과 뒷 트렁크**를 닫는다. 창문을 크게 열거나 문·뒷 트렁크를 열면 게임 속 온도가 떨어진다. 앞 트렁크의 입력은 무시한다. 가스 농도와 온도는 창문·문 상태로 계산하는 게임 수치다.
+
+마지막 단계에서 `Defroster → Front → On`은 쌓인 눈을 일부 녹인다. `Windshield Wiper Switch → Front → Low`로 시야를 확보한 뒤, `Steering Angle`을 시야가 확보됐을 때의 각도에서 **오른쪽으로 5° 이상** 움직이면 대피소 도착과 결과 화면이 이어진다. 결과 화면에서 홈으로 돌아와 팀 이름으로 기록을 남기고 MY에서 기록과 배지를 확인할 수 있다.
+
+debug 빌드는 **임시 시험용 「이전 단계 / 다음 단계 / 처음으로」 버튼**을 화면 아래에 표시한다. 단계 이동을 사용한 플레이는 기록과 배지에 반영되지 않는다. 제출용 release APK에서는 시험용 버튼을 숨긴다.
 
 `build/app/outputs/flutter-apk/app-debug.apk`는 로컬 확인용이며 Git에 포함되지 않는다. 공모전 제출용은 `apk/` 폴더의 release APK다.
 
@@ -59,7 +72,7 @@ debug 빌드에는 **임시 시험용 「이전 단계 / 다음 단계 / 처음�
 
 - Flutter 3.47.9 / Dart 3.13.7에서 검증. `pubspec.lock` 포함.
 - Android Studio, Android SDK (API 36, NDK 28.2.13676358, Build Tools 36.0.0), JDK 17. minSdk 28.
-- Pleos Vehicle SDK 2.3.2. 필요한 읽기 권한과 독서등 OFF를 위한 `CONTROL_CAR_LIGHTS`만 선언한다. 조명 단계 외 차량 제어는 하지 않는다.
+- Pleos Vehicle SDK 2.3.2, TextToSpeech SDK 3.3.1. 앱은 P단에서 독서등을 초기화하고, 기기가 지원하면 스토리 시작 시 공조 전원을 끈다. 「얼어붙은 밤」 나레이션은 Android에서 Pleos 음성 서비스를 사용하며, 서비스를 사용할 수 없거나 앱에서 나레이션 음량을 낮춘 경우 내장 음성으로 재생한다.
 - 이 PC에는 `.tools/flutter`와 `.tools/jdk-17.0.21+9`를 로컬 설치했다. `.tools`와 빌드 결과는 Git에서 제외된다.
 - Android Studio에서 Flutter 플러그인을 설치하고 Flutter SDK 경로를 이 폴더의 `.tools/flutter`로 지정할 수 있다.
 - 팀원이 새로 받으면 [Flutter 설치 안내](https://docs.flutter.dev/install/manual)에 따라 SDK를 설치하고 PATH에 추가한다. 실행 파일은 레포 안의 SDK를 먼저, 다음으로 PATH의 Flutter를 찾는다.
@@ -78,10 +91,10 @@ flutter run -d chrome
 flutter build apk --debug --target-platform android-x64,android-arm64
 ```
 
-공모전 [공식 개발 환경](https://appdevchallenge.auto-hmg.io/guide/development)과 [제출 안내](https://appdevchallenge.auto-hmg.io/guide/submission)도 참고한다. 제출 APK는 Pleos Connect 에뮬레이터에서 확인했으며 실차 검증을 뜻하지 않는다.
+제출 APK는 Pleos Connect v2.1.0 에뮬레이터 환경에서 확인했다. 공모전 [공식 개발 환경](https://appdevchallenge.auto-hmg.io/guide/development)과 [제출 안내](https://appdevchallenge.auto-hmg.io/guide/submission)도 참고한다.
 
 ## 담당 범위와 팀 연결
 
-`lib/features/tutorial/`에 시나리오·대사·퍼즐·결과를 모았다. 홈/모드 선택/차량 점검/본편/공통 배지 기능은 다른 담당자의 영역이다. `lib/main.dart`는 테마 선택 이후 화면을 단독 실행하는 최소 진입점이다.
+앱 진입점은 `lib/main.dart`이며, 홈 화면에서 기능점검·튜토리얼·스토리·MY·설정으로 이동한다. `lib/features/guide/`에는 기본 튜토리얼, `lib/features/tutorial/`에는 「얼어붙은 밤」 시나리오·대사·퍼즐·결과를 구현했다.
 
 실제 홈에서 진입하는 방법과 차량 입력 연결 계약, 지원 한계는 [튜토리얼 연결 문서](docs/tutorial-integration.md)에 있다. 기존 기획은 [CLAUDE.md](CLAUDE.md), [handoff](docs/handoff.md), [화면 시안](design/html/index.html)을 참고한다.
